@@ -144,132 +144,181 @@ $pageTitle = 'Trang chủ';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<!-- POPUP GIỚI THIỆU -->
+<style>
+/* CSS Nút bật tắt Filter trên Mobile */
+.mobile-filter-toggle {
+    display: none;
+    width: 100%;
+    margin-bottom: 15px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid var(--line-strong, #d1d5db);
+    color: var(--text-main, #1f2440);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+.mobile-filter-toggle svg {
+    transition: transform 0.3s ease;
+}
+.mobile-filter-toggle.is-open svg {
+    transform: rotate(180deg);
+}
+
+@media screen and (max-width: 768px) {
+    /* Ép Lưới Sản Phẩm 2 Cột */
+    .product-grid-pro {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+        padding: 0;
+    }
+    .product-card-content {
+        padding: 10px !important;
+    }
+    .product-title {
+        font-size: 13px !important;
+        margin-bottom: 4px;
+    }
+    .product-code, .product-category {
+        font-size: 11px !important;
+    }
+    .price { font-size: 15px !important; }
+    .price-old { font-size: 12px !important; }
+    .card-actions .btn {
+        padding: 6px !important;
+        font-size: 12px !important;
+        min-height: 36px !important;
+    }
+
+    /* Quản lý Filter Panel trên Mobile */
+    .mobile-filter-toggle {
+        display: flex;
+    }
+    .filter-panel {
+        display: none; /* Ẩn mặc định trên mobile */
+    }
+    .filter-panel.show-on-mobile {
+        display: block;
+        animation: slideDown 0.3s ease forwards;
+    }
+
+    /* Quản lý Popup chứa Hero Banner */
+    .store-intro-modal {
+        width: 95% !important;
+        max-height: 85vh !important;
+        overflow-y: auto !important; /* Cho phép lướt nội dung Hero */
+        padding: 15px !important;
+    }
+    .hero-pro-upgraded {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    .hero-brand-layout-home {
+        display: flex !important;
+        flex-direction: column-reverse;
+        gap: 15px;
+        padding: 0;
+        box-shadow: none;
+        border: none;
+        background: transparent;
+    }
+    .hero-brand-content {
+        padding: 20px 15px !important;
+    }
+    .hero-brand-content h1 {
+        font-size: 24px !important;
+    }
+    .hero-brand-banner img {
+        border-radius: 16px;
+    }
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
+
 <div class="store-intro-overlay" id="storeIntroPopup" aria-hidden="true">
     <div class="store-intro-modal" role="dialog" aria-modal="true" aria-labelledby="storeIntroTitle">
         <button class="popup-close-btn" type="button" data-close-popup>&times;</button>
 
-        <div class="intro-kicker">WELCOME TO OUR SHOP</div>
-        <h2 id="storeIntroTitle">Chào mừng bạn đến với Dương Một Mí</h2>
-        <p class="intro-desc">
-            Shop chuyên các mẫu trẻ trung, dễ phối, dễ mặc và được hỗ trợ tư vấn nhanh khi khách cần chốt đơn.
-            Giao diện đã được tối ưu để xem đẹp, lọc nhanh và mua hàng thuận tiện trên cả điện thoại lẫn máy tính.
-        </p>
+        <section class="hero-pro hero-pro-upgraded">
+            <div class="hero-brand-layout hero-brand-layout-home">
+                <div class="hero-brand-content">
+                    <h1>Trẻ trung hơn, hiện đại hơn, mua sắm tiện hơn</h1>
+                    <p>
+                        Khám phá sản phẩm theo danh mục, loại, giới tính, khoảng giá và từ khóa tìm kiếm.
+                        Giao diện mới giúp khách xem sản phẩm nhanh, đẹp và mượt hơn.
+                    </p>
 
-        <div class="intro-highlights">
-            <span>Tư vấn nhanh</span>
-            <span>Chốt đơn qua Zalo</span>
-            <span>Phong cách trẻ trung</span>
-            <span>Tối ưu mobile</span>
-        </div>
+                    <div class="hero-feature-tags">
+                        <span>Thiết kế hiện đại</span>
+                        <span>Lọc siêu nhanh</span>
+                        <span>Mua qua Zalo tiện lợi</span>
+                    </div>
 
-        <div class="intro-actions">
-            <button class="btn" type="button" data-close-popup>Khám phá sản phẩm</button>
-            <a class="btn btn-light" target="_blank" href="<?= e(ZALO_LINK) ?>">Liên hệ ngay</a>
-        </div>
+                    <div class="hero-socials hero-socials-home">
+                        <a class="social-card tiktok" href="https://www.tiktok.com/@duongmotmi2004?_r=1&_t=ZS-94ljEoOsGHP" target="_blank" rel="noopener noreferrer">
+                            <div class="social-icon icon-image">
+                                <img src="<?= e($tiktokIconUrl) ?>" alt="TikTok" width="24" height="24" loading="lazy" decoding="async">
+                            </div>
+                            <div class="social-text">
+                                <strong>TikTok</strong>
+                                <span>@duongmotmi2004</span>
+                            </div>
+                        </a>
+
+                        <a class="social-card facebook" href="https://www.facebook.com/share/18LTswFoe7/?mibextid=wwXIfr" target="_blank" rel="noopener noreferrer">
+                            <div class="social-icon icon-image">
+                                <img src="<?= e($facebookIconUrl) ?>" alt="Facebook" width="24" height="24" loading="lazy" decoding="async">
+                            </div>
+                            <div class="social-text">
+                                <strong>Facebook</strong>
+                                <span>Liên hệ mua hàng</span>
+                            </div>
+                        </a>
+
+                        <a class="social-card instagram" href="https://www.instagram.com/giuong_tung/" target="_blank" rel="noopener noreferrer">
+                            <div class="social-icon icon-image">
+                                <img src="<?= e($instagramIconUrl) ?>" alt="Instagram" width="24" height="24" loading="lazy" decoding="async">
+                            </div>
+                            <div class="social-text">
+                                <strong>Instagram</strong>
+                                <span>@giuong_tung</span>
+                            </div>
+                        </a>
+
+                        <a class="social-card zalo" href="<?= e(ZALO_LINK) ?>" target="_blank" rel="noopener noreferrer">
+                            <div class="social-icon icon-image">
+                                <img src="<?= e($zaloIconUrl) ?>" alt="Zalo" width="24" height="24" loading="lazy" decoding="async">
+                            </div>
+                            <div class="social-text">
+                                <strong>Zalo</strong>
+                                <span>Liên hệ mua hàng</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="hero-brand-banner">
+                    <img
+                        src="<?= e($heroBannerUrl) ?>"
+                        alt="Duong Mot Mi SHOP"
+                        width="900"
+                        height="900"
+                        loading="eager"
+                        decoding="async"
+                    >
+                </div>
+            </div>
+        </section>
+
     </div>
 </div>
 
 <button class="intro-open-btn" type="button" id="introOpenBtn">Giới thiệu shop</button>
-
-<section class="hero-pro hero-pro-upgraded">
-    <div class="hero-brand-layout hero-brand-layout-home">
-        <div class="hero-brand-content">
-            <h1>Trẻ trung hơn, hiện đại hơn, mua sắm tiện hơn</h1>
-            <p>
-                Khám phá sản phẩm theo danh mục, loại, giới tính, khoảng giá và từ khóa tìm kiếm.
-                Giao diện mới giúp khách xem sản phẩm nhanh, đẹp và mượt hơn.
-            </p>
-
-            <div class="hero-feature-tags">
-                <span>Thiết kế hiện đại</span>
-                <span>Lọc siêu nhanh</span>
-                <span>Mua qua Zalo tiện lợi</span>
-            </div>
-
-            <div class="hero-socials hero-socials-home">
-                <a class="social-card tiktok" href="https://www.tiktok.com/@duongmotmi2004?_r=1&_t=ZS-94ljEoOsGHP" target="_blank" rel="noopener noreferrer">
-                    <div class="social-icon icon-image">
-                        <img
-                            src="<?= e($tiktokIconUrl) ?>"
-                            alt="TikTok"
-                            width="24"
-                            height="24"
-                            loading="lazy"
-                            decoding="async"
-                        >
-                    </div>
-                    <div class="social-text">
-                        <strong>TikTok</strong>
-                        <span>@duongmotmi2004</span>
-                    </div>
-                </a>
-
-                <a class="social-card facebook" href="https://www.facebook.com/share/18LTswFoe7/?mibextid=wwXIfr" target="_blank" rel="noopener noreferrer">
-                    <div class="social-icon icon-image">
-                        <img
-                            src="<?= e($facebookIconUrl) ?>"
-                            alt="Facebook"
-                            width="24"
-                            height="24"
-                            loading="lazy"
-                            decoding="async"
-                        >
-                    </div>
-                    <div class="social-text">
-                        <strong>Facebook</strong>
-                        <span>Liên hệ mua hàng</span>
-                    </div>
-                </a>
-
-                <a class="social-card instagram" href="https://www.instagram.com/giuong_tung/" target="_blank" rel="noopener noreferrer">
-                    <div class="social-icon icon-image">
-                        <img
-                            src="<?= e($instagramIconUrl) ?>"
-                            alt="Instagram"
-                            width="24"
-                            height="24"
-                            loading="lazy"
-                            decoding="async"
-                        >
-                    </div>
-                    <div class="social-text">
-                        <strong>Instagram</strong>
-                        <span>@giuong_tung</span>
-                    </div>
-                </a>
-
-                <a class="social-card zalo" href="<?= e(ZALO_LINK) ?>" target="_blank" rel="noopener noreferrer">
-                    <div class="social-icon icon-image">
-                        <img
-                            src="<?= e($zaloIconUrl) ?>"
-                            alt="Zalo"
-                            width="24"
-                            height="24"
-                            loading="lazy"
-                            decoding="async"
-                        >
-                    </div>
-                    <div class="social-text">
-                        <strong>Zalo</strong>
-                        <span>Liên hệ mua hàng</span>
-                    </div>
-                </a>
-            </div>
-        </div>
-
-        <div class="hero-brand-banner">
-            <img
-                src="<?= e($heroBannerUrl) ?>"
-                alt="Duong Mot Mi SHOP"
-                width="900"
-                height="900"
-                loading="eager"
-                decoding="async"
-            >
-        </div>
-    </div>
-</section>
 
 <section class="shop-filter-wrap">
     <div class="category-pills">
@@ -287,6 +336,16 @@ require_once __DIR__ . '/includes/header.php';
             </a>
         <?php endforeach; ?>
     </div>
+
+    <button type="button" class="btn btn-outline mobile-filter-toggle" id="mobileFilterToggle">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+        </svg>
+        Tùy chỉnh bộ lọc
+        <svg class="chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+    </button>
 
     <form id="filterForm" class="filter-panel" method="get" action="<?= BASE_URL ?>/index.php">
         <input type="hidden" name="category" id="categoryInput" value="<?= $filters['category_id'] ?? '' ?>">
@@ -364,6 +423,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const typeSelect = document.getElementById('type');
     const genderSelect = document.getElementById('gender');
     const priceRangeSelect = document.getElementById('price_range');
+    const mobileFilterToggle = document.getElementById('mobileFilterToggle');
     const baseUrl = '<?= BASE_URL ?>/index.php';
     const allProductTypes = <?= json_encode($productTypesForJs, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 
@@ -371,6 +431,14 @@ document.addEventListener('DOMContentLoaded', function () {
     let activeController = null;
     let requestId = 0;
     let lastQuery = '';
+
+    // Logic Tắt/Mở Form Lọc trên Mobile
+    if (mobileFilterToggle) {
+        mobileFilterToggle.addEventListener('click', function() {
+            filterForm.classList.toggle('show-on-mobile');
+            this.classList.toggle('is-open');
+        });
+    }
 
     function updateActiveCategory(categoryId) {
         categoryFilters.forEach(link => {
@@ -508,12 +576,22 @@ document.addEventListener('DOMContentLoaded', function () {
             renderTypeOptions(categoryInput.value, '');
             updateActiveCategory(categoryInput.value);
             loadProducts(true);
+            
+            // Tự động cuộn xuống grid khi click category trên mobile
+            if (window.innerWidth <= 768) {
+                document.getElementById('product-list').scrollIntoView({ behavior: 'smooth' });
+            }
         });
     });
 
     filterForm.addEventListener('submit', function (e) {
         e.preventDefault();
         loadProducts(true);
+        // Ẩn form đi sau khi bấm Lọc trên mobile
+        if (window.innerWidth <= 768) {
+             filterForm.classList.remove('show-on-mobile');
+             mobileFilterToggle.classList.remove('is-open');
+        }
     });
 
     filterForm.querySelectorAll('select').forEach(field => {
@@ -547,7 +625,7 @@ document.addEventListener('DOMContentLoaded', function () {
     updateActiveCategory(categoryInput.value);
     lastQuery = buildQueryFromForm().toString();
 
-    // POPUP
+    // POPUP LOGIC
     const popup = document.getElementById('storeIntroPopup');
     const openPopupBtn = document.getElementById('introOpenBtn');
     const closePopupBtns = document.querySelectorAll('[data-close-popup]');
