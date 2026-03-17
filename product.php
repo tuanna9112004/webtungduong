@@ -430,12 +430,12 @@ if (empty($galleryImages)) {
                     <span class="spec-label">Màu sắc</span>
                     <strong><?= e($product['color'] ?: 'Đang cập nhật') ?></strong>
                 </div>
-                <div class="spec-item">
+                <!-- <div class="spec-item">
                     <span class="spec-label">Tình trạng kho</span>
                     <strong style="color: <?= ((int)$product['quantity'] > 0) ? 'inherit' : 'var(--danger-color)' ?>;">
                         <?= ((int)$product['quantity'] > 0) ? 'Còn ' . (int)$product['quantity'] . ' sản phẩm' : 'Hết hàng' ?>
                     </strong>
-                </div>
+                </div> -->
             </div>
 
             <div class="detail-actions">

@@ -481,14 +481,14 @@ textarea.form-control {
                     <?php endforeach; ?>
                 </select>
             </div>
-
+<br>
             <div class="form-group">
-                <label>Giá gốc (VNĐ) <span class="required-mark">*</span></label>
+                <label>Giá gốc (VNĐ) (đây là giá ghạch) <span class="required-mark">*</span></label>
                 <input type="text" name="original_price" class="form-control money-input" inputmode="numeric" autocomplete="off" value="<?= e($formatPriceInput($product['original_price'])) ?>" required>
             </div>
 
             <div class="form-group">
-                <label>Giá khuyến mãi (VNĐ)</label>
+                <label>Giá khuyến mãi (VNĐ) (đây là giá bán)</label>
                 <input type="text" name="sale_price" class="form-control money-input" inputmode="numeric" autocomplete="off" value="<?= e($formatPriceInput($product['sale_price'])) ?>">
                 <span class="hint">Để trống nếu không Sale.</span>
             </div>
@@ -514,9 +514,16 @@ textarea.form-control {
             </div>
 
             <div class="form-group col-full">
-                <label>Link Zalo nhập hàng / Nguồn</label>
-                <input type="url" name="import_link" class="form-control" value="<?= e($product['import_link']) ?>" placeholder="https://zalo.me/...">
-            </div>
+    <label>Link Zalo nhập hàng / Nguồn / SĐT</label>
+    <input 
+        type="text" 
+        name="import_link" 
+        class="form-control" 
+        value="<?= e($product['import_link']) ?>" 
+        placeholder="Nhập link (https://...) hoặc Số điện thoại nguồn hàng"
+    >
+    <span class="hint">Bạn có thể điền link Zalo, link nguồn hàng hoặc số điện thoại đều được.</span>
+</div>
 
             <div class="form-group col-full">
                 <label>Tình trạng sản phẩm</label>
