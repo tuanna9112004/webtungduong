@@ -366,7 +366,7 @@ function handle_image_upload(?array $file): ?string
     }
 
     $allowed = [
-        'image/jpeg' => 'jpeg',
+        'image/jpeg' => 'jpg',
         'image/png'  => 'png',
         'image/webp' => 'webp',
     ];
@@ -381,90 +381,15 @@ function handle_image_upload(?array $file): ?string
         mkdir($targetDir, 0777, true);
     }
 
-    /**
-     * Nếu server chưa bật GD hoặc thiếu hàm xử lý ảnh tương ứng
-     * thì fallback lưu file gốc để tránh crash toàn bộ form.
-     */
-    if (!can_process_image_with_gd($mime) || !function_exists('imagewebp')) {
-        return save_original_uploaded_file($file, $mime);
-    }
-
-    $sourcePath = $file['tmp_name'];
-    $sourceImage = null;
-
-    switch ($mime) {
-        case 'image/jpeg':
-            $sourceImage = @imagecreatefromjpeg($sourcePath);
-            break;
-        case 'image/png':
-            $sourceImage = @imagecreatefrompng($sourcePath);
-            break;
-        case 'image/webp':
-            $sourceImage = @imagecreatefromwebp($sourcePath);
-            break;
-    }
-
-    if (!$sourceImage) {
-        return save_original_uploaded_file($file, $mime);
-    }
-
-    $srcWidth  = imagesx($sourceImage);
-    $srcHeight = imagesy($sourceImage);
-
-    if ($srcWidth <= 0 || $srcHeight <= 0) {
-        imagedestroy($sourceImage);
-        return save_original_uploaded_file($file, $mime);
-    }
-
-    $maxWidth = 1600;
-
-    if ($srcWidth > $maxWidth) {
-        $newWidth  = $maxWidth;
-        $newHeight = (int) round(($srcHeight / $srcWidth) * $newWidth);
-    } else {
-        $newWidth  = $srcWidth;
-        $newHeight = $srcHeight;
-    }
-
-    $canvas = imagecreatetruecolor($newWidth, $newHeight);
-    if (!$canvas) {
-        imagedestroy($sourceImage);
-        return save_original_uploaded_file($file, $mime);
-    }
-
-    imagealphablending($canvas, false);
-    imagesavealpha($canvas, true);
-    $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
-    imagefilledrectangle($canvas, 0, 0, $newWidth, $newHeight, $transparent);
-
-    imagecopyresampled(
-        $canvas,
-        $sourceImage,
-        0,
-        0,
-        0,
-        0,
-        $newWidth,
-        $newHeight,
-        $srcWidth,
-        $srcHeight
-    );
-
-    $name = uniqid('img_', true) . '.webp';
+    $name = uniqid('img_', true) . '.' . $allowed[$mime];
     $target = $targetDir . '/' . $name;
 
-    $saved = @imagewebp($canvas, $target, 82);
-
-    imagedestroy($sourceImage);
-    imagedestroy($canvas);
-
-    if (!$saved) {
-        return save_original_uploaded_file($file, $mime);
+    if (!move_uploaded_file($file['tmp_name'], $target)) {
+        return null;
     }
 
     return 'uploads/' . $name;
 }
-
 function handle_multiple_image_uploads(?array $files): array {
     $uploaded = [];
     foreach (normalize_uploaded_files($files) as $file) {

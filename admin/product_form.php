@@ -561,8 +561,19 @@ textarea.form-control {
 
             <div class="form-group col-full" style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px dashed var(--line-strong);">
                 <label style="color: var(--primary-color); font-size: 15px;">Thư viện ảnh sản phẩm <span class="required-mark">*</span></label>
-                <input type="file" name="gallery_files[]" accept="image/png,image/jpeg,image/webp" multiple <?= $isEdit ? '' : 'required' ?> style="margin-top: 10px; width: 100%;">
-                <span class="hint">Bạn có thể chọn <strong>nhiều ảnh</strong> cùng lúc. Ảnh đầu tiên tải lên sẽ tự động làm <strong>Ảnh đại diện</strong> ngoài trang chủ. Hỗ trợ định dạng: JPG, PNG, WEBP.</span>
+              <input
+    id="galleryFiles"
+    type="file"
+    name="gallery_files[]"
+    accept="image/png,image/jpeg,image/webp"
+    multiple
+    <?= $isEdit ? '' : 'required' ?>
+    style="margin-top: 10px; width: 100%;"
+>
+<div id="uploadHint" class="hint">
+    Bạn có thể chọn <strong>nhiều ảnh</strong> cùng lúc. Hệ thống sẽ tự nén ảnh trước khi tải lên để nhanh hơn.
+</div>
+<div id="uploadStatus" class="hint" style="margin-top:8px;color:#2563eb;"></div>
             </div>
 
             <?php if (!empty($images)): ?>
@@ -601,6 +612,13 @@ textarea.form-control {
 document.addEventListener('DOMContentLoaded', function () {
     const categorySelect = document.getElementById('categorySelect');
     const typeSelect = document.getElementById('productTypeSelect');
+    const galleryInput = document.getElementById('galleryFiles');
+    const uploadStatus = document.getElementById('uploadStatus');
+    const form = document.querySelector('form[enctype="multipart/form-data"]');
+    const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+
+    let isSubmittingCompressed = false;
+    let originalSubmitHtml = submitBtn ? submitBtn.innerHTML : '';
 
     function syncTypeOptions() {
         if (!categorySelect || !typeSelect) return;
@@ -637,6 +655,169 @@ document.addEventListener('DOMContentLoaded', function () {
         return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     }
 
+    function formatBytes(bytes) {
+        if (!bytes) return '0 KB';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let i = 0;
+        let size = bytes;
+        while (size >= 1024 && i < units.length - 1) {
+            size /= 1024;
+            i++;
+        }
+        return `${size.toFixed(size >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+
+    function loadImageFromFile(file) {
+        return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+
+            img.onload = function () {
+                URL.revokeObjectURL(url);
+                resolve(img);
+            };
+
+            img.onerror = function () {
+                URL.revokeObjectURL(url);
+                reject(new Error('Không thể đọc ảnh'));
+            };
+
+            img.src = url;
+        });
+    }
+
+    async function compressImage(file, options = {}) {
+        const {
+            maxWidth = 1600,
+            quality = 0.82,
+            outputType = 'image/webp'
+        } = options;
+
+        if (!file.type.startsWith('image/')) {
+            return file;
+        }
+
+        let srcWidth = 0;
+        let srcHeight = 0;
+        let drawSource = null;
+
+        try {
+            if ('createImageBitmap' in window) {
+                const bitmap = await createImageBitmap(file);
+                srcWidth = bitmap.width;
+                srcHeight = bitmap.height;
+                drawSource = bitmap;
+            } else {
+                const img = await loadImageFromFile(file);
+                srcWidth = img.naturalWidth || img.width;
+                srcHeight = img.naturalHeight || img.height;
+                drawSource = img;
+            }
+        } catch (error) {
+            console.error(error);
+            return file;
+        }
+
+        let targetWidth = srcWidth;
+        let targetHeight = srcHeight;
+
+        if (srcWidth > maxWidth) {
+            targetWidth = maxWidth;
+            targetHeight = Math.round((srcHeight / srcWidth) * targetWidth);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
+        const ctx = canvas.getContext('2d', { alpha: true });
+        if (!ctx) {
+            if (drawSource && typeof drawSource.close === 'function') {
+                drawSource.close();
+            }
+            return file;
+        }
+
+        ctx.drawImage(drawSource, 0, 0, targetWidth, targetHeight);
+
+        if (drawSource && typeof drawSource.close === 'function') {
+            drawSource.close();
+        }
+
+        const blob = await new Promise((resolve) => {
+            canvas.toBlob(
+                (result) => resolve(result || null),
+                outputType,
+                quality
+            );
+        });
+
+        if (!(blob instanceof Blob)) {
+            return file;
+        }
+
+        const originalSize = file.size || 0;
+        const compressedSize = blob.size || 0;
+
+        if (compressedSize >= originalSize && originalSize > 0) {
+            return file;
+        }
+
+        const ext = outputType === 'image/webp' ? 'webp' : 'jpg';
+        const cleanName = file.name.replace(/\.[^.]+$/, '');
+        const newName = `${cleanName}.${ext}`;
+
+        return new File([blob], newName, {
+            type: outputType,
+            lastModified: Date.now()
+        });
+    }
+
+    async function compressSelectedFiles(files) {
+        const compressedFiles = [];
+        let originalTotal = 0;
+        let compressedTotal = 0;
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            originalTotal += file.size || 0;
+
+            if (uploadStatus) {
+                uploadStatus.textContent = `Đang nén ảnh ${i + 1}/${files.length}...`;
+            }
+
+            const compressed = await compressImage(file, {
+                maxWidth: 1600,
+                quality: 0.82,
+                outputType: 'image/webp'
+            });
+
+            compressedTotal += compressed.size || 0;
+            compressedFiles.push(compressed);
+        }
+
+        return {
+            files: compressedFiles,
+            originalTotal,
+            compressedTotal
+        };
+    }
+
+    if (galleryInput) {
+        galleryInput.addEventListener('change', function () {
+            const files = Array.from(this.files || []);
+            if (!files.length) {
+                if (uploadStatus) uploadStatus.textContent = '';
+                return;
+            }
+
+            const total = files.reduce((sum, file) => sum + (file.size || 0), 0);
+            if (uploadStatus) {
+                uploadStatus.textContent = `Đã chọn ${files.length} ảnh • Tổng dung lượng gốc: ${formatBytes(total)}`;
+            }
+        });
+    }
+
     const moneyInputs = document.querySelectorAll('.money-input');
     moneyInputs.forEach((input) => {
         input.addEventListener('input', function () {
@@ -649,6 +830,62 @@ document.addEventListener('DOMContentLoaded', function () {
     if (categorySelect) {
         categorySelect.addEventListener('change', syncTypeOptions);
         syncTypeOptions();
+    }
+
+    if (form && galleryInput) {
+        form.addEventListener('submit', async function (e) {
+            if (isSubmittingCompressed) {
+                return;
+            }
+
+            const files = Array.from(galleryInput.files || []);
+            if (!files.length) {
+                return;
+            }
+
+            e.preventDefault();
+
+            try {
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = 'Đang nén và tải ảnh...';
+                }
+
+                const result = await compressSelectedFiles(files);
+
+                if (uploadStatus) {
+                    uploadStatus.textContent =
+                        `Đã nén ${files.length} ảnh: ${formatBytes(result.originalTotal)} → ${formatBytes(result.compressedTotal)}`;
+                }
+
+                if (window.DataTransfer) {
+                    const dt = new DataTransfer();
+                    result.files.forEach(file => dt.items.add(file));
+                    galleryInput.files = dt.files;
+                } else {
+                    if (uploadStatus) {
+                        uploadStatus.textContent += ' • Trình duyệt không hỗ trợ gán lại file sau khi nén.';
+                    }
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalSubmitHtml;
+                    }
+                    return;
+                }
+
+                isSubmittingCompressed = true;
+                form.submit();
+            } catch (error) {
+                console.error(error);
+                if (uploadStatus) {
+                    uploadStatus.textContent = 'Không thể nén ảnh trước khi tải lên. Vui lòng thử lại.';
+                }
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalSubmitHtml;
+                }
+            }
+        });
     }
 });
 </script>
