@@ -117,11 +117,11 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
         <nav class="menu" id="headerMenu">
             <a href="<?= BASE_URL ?>/index.php">Trang chủ</a>
             <a href="<?= BASE_URL ?>/index.php#product-list">Sản phẩm</a>
-            <?php if (is_admin_logged_in()): ?>
+            <!-- <?php if (is_admin_logged_in()): ?>
                 <a href="<?= BASE_URL ?>/admin/products.php">Quản trị</a>
             <?php else: ?>
                 <a href="<?= BASE_URL ?>/admin/login.php">Admin</a>
-            <?php endif; ?>
+            <?php endif; ?> -->
             <a target="_blank" href="<?= e(ZALO_LINK) ?>">Zalo</a>
         </nav>
     </div>

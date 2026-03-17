@@ -455,12 +455,6 @@ body.popup-open {
         <section class="hero-pro hero-pro-upgraded">
             <div class="hero-brand-layout hero-brand-layout-home">
                 <div class="hero-brand-content">
-                    <h1>Trẻ trung hơn, hiện đại hơn, mua sắm tiện hơn</h1>
-                    <p>
-                        Khám phá sản phẩm theo danh mục, loại, giới tính, khoảng giá và từ khóa tìm kiếm.
-                        Giao diện mới giúp khách xem sản phẩm nhanh, đẹp và mượt hơn.
-                    </p>
-
                     <div class="hero-feature-tags">
                         <span>Thiết kế hiện đại</span>
                         <span>Lọc siêu nhanh</span>
