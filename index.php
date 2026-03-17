@@ -142,10 +142,196 @@ $instagramIconUrl = resolve_media_url('uploads/ig.png');
 $zaloIconUrl     = resolve_media_url('uploads/zl.png');
 $pageTitle = 'Trang chủ';
 require_once __DIR__ . '/includes/header.php';
+
+// CỜ HIỂN THỊ POPUP: Chỉ hiện khi người dùng KHÔNG sử dụng bất kỳ filter nào (Trang chủ thuần)
+$isFiltering = (!empty($filters['category_id']) || !empty($filters['type_id']) || !empty($filters['gender']) || !empty($filters['price_max']) || !empty($filters['price_min']) || !empty($filters['q']));
+$showPopup = !$isFiltering;
 ?>
 
 <style>
-/* CSS Nút bật tắt Filter trên Mobile */
+/* =========================================================
+   CSS RIÊNG CHO TRANG INDEX TỐI ƯU GỌN NHẸ
+   ========================================================= */
+.intro-open-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--primary-color);
+    color: var(--bg-white);
+    border: none;
+    padding: 12px 20px;
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 100;
+    transition: transform 0.2s;
+}
+
+.intro-open-btn:hover {
+    transform: scale(1.05);
+}
+
+body.popup-open {
+    overflow: hidden;
+}
+
+.store-intro-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;    
+    justify-content: center; 
+    z-index: var(--z-index-modal);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.store-intro-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.store-intro-modal {
+    position: relative;
+    background: var(--bg-white);
+    width: 900px;
+    max-width: 90%;
+    max-height: 85vh; 
+    border-radius: 20px;
+    overflow-y: auto; 
+    transform: scale(0.95) translateY(20px);
+    transition: transform 0.3s ease;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
+
+.store-intro-overlay.show .store-intro-modal {
+    transform: scale(1) translateY(0);
+}
+
+.popup-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 36px;
+    height: 36px;
+    background: rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 50%;
+    font-size: 24px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: background 0.2s;
+}
+
+.popup-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.hero-brand-layout-home {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: #f8fafc;
+}
+
+.hero-brand-content {
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.hero-brand-content h1 {
+    font-size: 32px;
+    line-height: 1.2;
+    margin-bottom: 16px;
+    color: var(--primary-color);
+}
+
+.hero-brand-content p {
+    font-size: 16px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+}
+
+.hero-feature-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 30px;
+}
+
+.hero-feature-tags span {
+    background: #e2e8f0;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.hero-socials-home {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.social-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-white);
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--line-light);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.social-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border-color: var(--line-strong);
+}
+
+.social-icon img {
+    border-radius: 6px;
+}
+
+.social-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.social-text strong {
+    font-size: 14px;
+    color: var(--text-main);
+}
+
+.social-text span {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.hero-brand-banner {
+    height: 100%;
+}
+
+.hero-brand-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Ẩn Filter button Desktop */
 .mobile-filter-toggle {
     display: none;
     width: 100%;
@@ -154,92 +340,114 @@ require_once __DIR__ . '/includes/header.php';
     justify-content: center;
     gap: 8px;
     background: #fff;
-    border: 1px solid var(--line-strong, #d1d5db);
-    color: var(--text-main, #1f2440);
+    border: 1px solid var(--line-strong);
+    color: var(--text-main);
     box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    font-weight: 600;
+    border-radius: var(--radius-md);
 }
+
 .mobile-filter-toggle svg {
     transition: transform 0.3s ease;
 }
-.mobile-filter-toggle.is-open svg {
+
+.mobile-filter-toggle.is-open .chevron {
     transform: rotate(180deg);
-}
-
-@media screen and (max-width: 768px) {
-    /* Ép Lưới Sản Phẩm 2 Cột */
-    .product-grid-pro {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 10px !important;
-        padding: 0;
-    }
-    .product-card-content {
-        padding: 10px !important;
-    }
-    .product-title {
-        font-size: 13px !important;
-        margin-bottom: 4px;
-    }
-    .product-code, .product-category {
-        font-size: 11px !important;
-    }
-    .price { font-size: 15px !important; }
-    .price-old { font-size: 12px !important; }
-    .card-actions .btn {
-        padding: 6px !important;
-        font-size: 12px !important;
-        min-height: 36px !important;
-    }
-
-    /* Quản lý Filter Panel trên Mobile */
-    .mobile-filter-toggle {
-        display: flex;
-    }
-    .filter-panel {
-        display: none; /* Ẩn mặc định trên mobile */
-    }
-    .filter-panel.show-on-mobile {
-        display: block;
-        animation: slideDown 0.3s ease forwards;
-    }
-
-    /* Quản lý Popup chứa Hero Banner */
-    .store-intro-modal {
-        width: 95% !important;
-        max-height: 85vh !important;
-        overflow-y: auto !important; /* Cho phép lướt nội dung Hero */
-        padding: 15px !important;
-    }
-    .hero-pro-upgraded {
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-    .hero-brand-layout-home {
-        display: flex !important;
-        flex-direction: column-reverse;
-        gap: 15px;
-        padding: 0;
-        box-shadow: none;
-        border: none;
-        background: transparent;
-    }
-    .hero-brand-content {
-        padding: 20px 15px !important;
-    }
-    .hero-brand-content h1 {
-        font-size: 24px !important;
-    }
-    .hero-brand-banner img {
-        border-radius: 16px;
-    }
 }
 
 @keyframes slideDown {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+@media screen and (max-width: 768px) {
+    /* Popup Mobile */
+    .store-intro-modal {
+        width: 95% !important;
+        max-height: 85vh !important;
+        padding: 0; 
+        border-radius: 16px;
+    }
+
+    .hero-brand-layout-home {
+        display: flex !important;
+        flex-direction: column-reverse; 
+        background: var(--bg-white);
+    }
+
+    .hero-brand-content {
+        padding: 20px 15px !important;
+    }
+
+    .hero-brand-content h1 {
+        font-size: 22px !important;
+    }
+
+    .hero-brand-content p {
+        font-size: 14px;
+        margin-bottom: 15px;
+    }
+
+    .hero-feature-tags {
+        margin-bottom: 20px;
+    }
+
+    .hero-feature-tags span {
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+
+    .hero-socials-home {
+        grid-template-columns: 1fr; 
+    }
+
+    .hero-brand-banner img {
+        height: 250px; 
+    }
+    
+    .popup-close-btn {
+        background: rgba(255, 255, 255, 0.8);
+        color: var(--primary-color);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    /* Logic bật tắt Filter Mobile */
+    .mobile-filter-toggle {
+        display: flex;
+    }
+
+    .filter-panel {
+        display: none; 
+        margin-bottom: 15px;
+        padding: 15px;
+    }
+
+    .filter-panel.show-on-mobile {
+        display: block;
+        animation: slideDown 0.3s ease forwards;
+    }
+
+    .filter-grid {
+        grid-template-columns: 1fr; 
+        gap: 12px;
+    }
+    
+    .filter-field label {
+        margin-bottom: 4px;
+    }
+    
+    .filter-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .filter-actions .btn {
+        width: 100%;
+    }
+}
 </style>
 
+<?php if ($showPopup): ?>
 <div class="store-intro-overlay" id="storeIntroPopup" aria-hidden="true">
     <div class="store-intro-modal" role="dialog" aria-modal="true" aria-labelledby="storeIntroTitle">
         <button class="popup-close-btn" type="button" data-close-popup>&times;</button>
@@ -314,9 +522,9 @@ require_once __DIR__ . '/includes/header.php';
                 </div>
             </div>
         </section>
-
     </div>
 </div>
+<?php endif; ?>
 
 <button class="intro-open-btn" type="button" id="introOpenBtn">Giới thiệu shop</button>
 
@@ -432,7 +640,6 @@ document.addEventListener('DOMContentLoaded', function () {
     let requestId = 0;
     let lastQuery = '';
 
-    // Logic Tắt/Mở Form Lọc trên Mobile
     if (mobileFilterToggle) {
         mobileFilterToggle.addEventListener('click', function() {
             filterForm.classList.toggle('show-on-mobile');
@@ -456,7 +663,6 @@ document.addEventListener('DOMContentLoaded', function () {
             : allProductTypes.filter(type => String(type.category_id) === normalizedCategory);
 
         typeSelect.innerHTML = '<option value="">Tất cả loại</option>';
-
         let hasSelectedType = false;
 
         filteredTypes.forEach(type => {
@@ -468,7 +674,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 option.selected = true;
                 hasSelectedType = true;
             }
-
             typeSelect.appendChild(option);
         });
 
@@ -487,7 +692,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 params.set(key, normalizedValue);
             }
         }
-
         return params;
     }
 
@@ -527,15 +731,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
 
-            if (!response.ok) {
-                throw new Error('Không thể tải dữ liệu');
-            }
+            if (!response.ok) throw new Error('Lỗi fetch');
 
             const data = await response.json();
 
-            if (currentRequestId !== requestId) {
-                return;
-            }
+            if (currentRequestId !== requestId) return;
 
             productGrid.classList.add('is-swapping');
 
@@ -551,17 +751,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             });
         } catch (error) {
-            if (error.name === 'AbortError') {
-                return;
-            }
-
+            if (error.name === 'AbortError') return;
             console.error(error);
-            productGrid.innerHTML = `
-                <div class="empty-state">
-                    <h3>Có lỗi xảy ra</h3>
-                    <p>Không thể tải sản phẩm lúc này. Vui lòng thử lại sau.</p>
-                </div>
-            `;
         } finally {
             if (currentRequestId === requestId) {
                 setLoadingState(false);
@@ -569,15 +760,28 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // LOGIC MỚI: KHI ĐỔI DANH MỤC, RESET TẤT CẢ FILTER KHÁC
     categoryFilters.forEach(link => {
         link.addEventListener('click', function (e) {
             e.preventDefault();
-            categoryInput.value = this.dataset.category || '';
-            renderTypeOptions(categoryInput.value, '');
-            updateActiveCategory(categoryInput.value);
+            
+            // Lấy ID danh mục mới
+            const newCategoryId = this.dataset.category || '';
+            categoryInput.value = newCategoryId;
+            
+            // XÓA TRỐNG TOÀN BỘ CÁC TRƯỜNG LỌC KHÁC
+            if (searchInput) searchInput.value = '';
+            if (genderSelect) genderSelect.value = '';
+            if (priceRangeSelect) priceRangeSelect.value = '';
+            
+            // Render lại options Loại theo danh mục mới và để trống (không chọn loại nào)
+            renderTypeOptions(newCategoryId, '');
+            
+            updateActiveCategory(newCategoryId);
+            
+            // Load sản phẩm với force=true
             loadProducts(true);
             
-            // Tự động cuộn xuống grid khi click category trên mobile
             if (window.innerWidth <= 768) {
                 document.getElementById('product-list').scrollIntoView({ behavior: 'smooth' });
             }
@@ -587,7 +791,6 @@ document.addEventListener('DOMContentLoaded', function () {
     filterForm.addEventListener('submit', function (e) {
         e.preventDefault();
         loadProducts(true);
-        // Ẩn form đi sau khi bấm Lọc trên mobile
         if (window.innerWidth <= 768) {
              filterForm.classList.remove('show-on-mobile');
              mobileFilterToggle.classList.remove('is-open');
@@ -640,7 +843,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!popup) return;
         popup.classList.remove('show');
         document.body.classList.remove('popup-open');
-        sessionStorage.setItem('shop_intro_closed', '1');
     }
 
     if (openPopupBtn) {
@@ -665,21 +867,21 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    if (!sessionStorage.getItem('shop_intro_closed')) {
+    // Chỉ hiện tự động nếu PHP cờ $showPopup = true
+    <?php if ($showPopup): ?>
         const schedulePopup = () => {
             setTimeout(() => {
                 if (!document.hidden) {
                     openPopup();
                 }
-            }, 1200);
+            }, 800);
         };
-
         if ('requestIdleCallback' in window) {
-            requestIdleCallback(schedulePopup, { timeout: 1800 });
+            requestIdleCallback(schedulePopup, { timeout: 1500 });
         } else {
             window.addEventListener('load', schedulePopup, { once: true });
         }
-    }
+    <?php endif; ?>
 });
 </script>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

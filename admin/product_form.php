@@ -201,170 +201,394 @@ $productTypes = get_product_types();
 $productConditions = get_product_conditions();
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<div class="admin-topbar">
-    <h1><?= $isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm' ?></h1>
-    <a class="btn btn-light" href="<?= BASE_URL ?>/admin/products.php">← Quay lại danh sách</a>
-</div>
 
-<?php if (!empty($errors)): ?>
-    <div class="alert error">
-        <?= e(implode(' ', $errors)) ?>
+<style>
+/* ==========================================================================
+   CSS DÀNH CHO FORM SẢN PHẨM
+   ========================================================================== */
+.admin-wrapper {
+    padding-top: 20px;
+    padding-bottom: 60px;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line-light, #e5e7eb);
+}
+
+.admin-header h1 {
+    font-size: 24px;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.card-box {
+    background: var(--bg-white, #fff);
+    border-radius: var(--radius-lg, 12px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--line-light, #e5e7eb);
+    padding: 24px;
+}
+
+/* Lưới Form: Mặc định 1 cột (Mobile), 2 cột (Desktop) */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+@media (min-width: 768px) {
+    .form-grid { grid-template-columns: 1fr 1fr; }
+    .col-full { grid-column: 1 / -1; }
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted, #6b7280);
+    margin-bottom: 8px;
+}
+
+.form-group .hint {
+    display: block;
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: 6px;
+    font-weight: 400;
+}
+
+.required-mark { color: var(--danger-color, #ef4444); }
+
+.form-control {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line-strong, #d1d5db);
+    border-radius: var(--radius-md, 8px);
+    font-size: 14px;
+    color: var(--text-main);
+    background-color: var(--bg-white, #fff);
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.form-control:focus { border-color: var(--primary-color, #000); }
+.form-control[readonly] { background-color: #f3f4f6; cursor: not-allowed; }
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Custom Checkbox Tình Trạng */
+.checkbox-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.checkbox-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f1f5f9;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+
+.checkbox-chip input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+}
+
+.checkbox-chip:hover { border-color: var(--line-strong); }
+
+/* Checkbox hiển thị website */
+.checkbox-inline {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 10px 15px;
+    background: #f8fafc;
+    border: 1px solid var(--line-light);
+    border-radius: 8px;
+}
+.checkbox-inline input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+}
+
+/* Thư viện ảnh */
+.existing-gallery {
+    margin-top: 10px;
+    padding-top: 20px;
+    border-top: 1px dashed var(--line-strong);
+}
+
+.existing-gallery h3 {
+    font-size: 16px;
+    margin-bottom: 15px;
+}
+
+.existing-gallery-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.existing-gallery-item {
+    width: 120px;
+    position: relative;
+    border: 1px solid var(--line-light);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    cursor: pointer;
+}
+
+.existing-gallery-item img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    display: block;
+}
+
+.existing-gallery-meta {
+    padding: 8px;
+    text-align: center;
+    background: #f8fafc;
+    border-top: 1px solid var(--line-light);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.thumb-badge {
+    background: var(--primary-color);
+    color: #fff;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+/* Alerts & Buttons */
+.alert { padding: 14px 16px; border-radius: 8px; margin-bottom: 24px; font-size: 14px; font-weight: 500; }
+.alert.error { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line-light);
+}
+
+@media (max-width: 768px) {
+    .form-actions { flex-direction: column; }
+    .form-actions .btn { width: 100%; }
+}
+</style>
+
+<div class="container admin-wrapper">
+    <div class="admin-header">
+        <h1><?= $isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới' ?></h1>
+        <a class="btn btn-light" href="<?= BASE_URL ?>/admin/products.php">← Hủy & Quay lại</a>
     </div>
-<?php endif; ?>
 
-<form method="post" enctype="multipart/form-data" class="form-grid">
-    <label>Tên sản phẩm
-        <input type="text" name="product_name" value="<?= e($product['product_name']) ?>" required>
-    </label>
-
-    <label>Mã sản phẩm
-        <input type="text" value="<?= e($product['product_code']) ?>" readonly>
-        <small class="hint">Mã được tự sinh tự động khi thêm mới sản phẩm.</small>
-    </label>
-
-    <label>Danh mục <span class="required-mark">*</span>
-        <select name="category_id" id="categorySelect" required>
-            <option value="">-- Chọn danh mục --</option>
-            <?php foreach ($categories as $cat): ?>
-                <option value="<?= (int)$cat['id'] ?>" <?= (int)$product['category_id'] === (int)$cat['id'] ? 'selected' : '' ?>><?= e($cat['name']) ?></option>
-            <?php endforeach; ?>
-        </select>
-    </label>
-
-    <label>Loại sản phẩm <span class="required-mark">*</span>
-        <select name="product_type_id" id="productTypeSelect" required>
-            <option value="">-- Chọn loại sản phẩm --</option>
-            <?php foreach ($productTypes as $type): ?>
-                <option
-                    value="<?= (int)$type['id'] ?>"
-                    data-category-id="<?= (int)$type['category_id'] ?>"
-                    <?= (int)$product['product_type_id'] === (int)$type['id'] ? 'selected' : '' ?>
-                >
-                    <?= e($type['name']) ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-        <small class="hint">Sau khi chọn danh mục, hệ thống sẽ chỉ hiển thị các loại thuộc đúng danh mục đó.</small>
-    </label>
-
-    <label>Phong cách
-        <select name="style_id">
-            <option value="">-- Chọn phong cách --</option>
-            <?php foreach ($styles as $style): ?>
-                <option value="<?= (int)$style['id'] ?>" <?= (int)$product['style_id'] === (int)$style['id'] ? 'selected' : '' ?>><?= e($style['name']) ?></option>
-            <?php endforeach; ?>
-        </select>
-    </label>
-
-    <label>Giới tính
-        <select name="gender" required>
-            <?php foreach (product_gender_options() as $gender): ?>
-                <option value="<?= e($gender) ?>" <?= $product['gender'] === $gender ? 'selected' : '' ?>><?= e($gender) ?></option>
-            <?php endforeach; ?>
-        </select>
-    </label>
-
-    <label>Giá gốc
-        <input
-            type="text"
-            name="original_price"
-            class="money-input"
-            inputmode="numeric"
-            autocomplete="off"
-            value="<?= e($formatPriceInput($product['original_price'])) ?>"
-            required
-        >
-    </label>
-
-    <label>Giá sale
-        <input
-            type="text"
-            name="sale_price"
-            class="money-input"
-            inputmode="numeric"
-            autocomplete="off"
-            value="<?= e($formatPriceInput($product['sale_price'])) ?>"
-        >
-    </label>
-
-    <label>Chất liệu
-        <input type="text" name="material" value="<?= e($product['material']) ?>">
-    </label>
-
-    <label>Size
-        <input type="text" name="size" placeholder="S, M, L, XL" value="<?= e($product['size']) ?>">
-    </label>
-
-    <label>Số lượng
-        <input type="number" name="quantity" min="0" value="<?= e((string)$product['quantity']) ?>">
-    </label>
-
-    <label>Màu sắc
-        <input type="text" name="color" placeholder="Đen, Trắng, Xám" value="<?= e($product['color']) ?>">
-    </label>
-
-    <label>Link nhập / liên hệ
-        <input type="text" name="import_link" value="<?= e($product['import_link']) ?>" placeholder="https://zalo.me/...">
-    </label>
-
-    <label class="checkbox-inline">
-        <input type="checkbox" name="is_active" value="1" <?= !empty($product['is_active']) ? 'checked' : '' ?>>
-        <span>Hiển thị sản phẩm trên website</span>
-    </label>
-
-    <label class="full">Tình trạng sản phẩm
-        <div class="checkbox-list">
-            <?php if (empty($productConditions)): ?>
-                <div class="hint">Chưa có tình trạng nào. Hãy thêm tại mục Quản lý tình trạng.</div>
-            <?php else: ?>
-                <?php foreach ($productConditions as $condition): ?>
-                    <label class="checkbox-chip">
-                        <input type="checkbox" name="condition_ids[]" value="<?= (int)$condition['id'] ?>" <?= in_array((int)$condition['id'], $selectedConditions, true) ? 'checked' : '' ?>>
-                        <span><?= e($condition['name']) ?></span>
-                    </label>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </div>
-    </label>
-
-    <label class="full">Mô tả ngắn
-        <textarea name="short_description" rows="3"><?= e($product['short_description']) ?></textarea>
-    </label>
-
-    <label class="full">Thông tin chi tiết
-        <textarea name="information" rows="6"><?= e($product['information']) ?></textarea>
-    </label>
-
-    <label class="full">Ảnh sản phẩm
-        <input type="file" name="gallery_files[]" accept="image/png,image/jpeg,image/webp" multiple <?= $isEdit ? '' : 'required' ?>>
-        <small class="hint">Chọn nhiều ảnh cùng lúc. Ảnh đầu tiên bạn chọn sẽ tự động được dùng làm ảnh đại diện.</small>
-    </label>
-
-    <?php if (!empty($images)): ?>
-        <div class="full existing-gallery">
-            <h3>Ảnh hiện có</h3>
-            <div class="existing-gallery-grid">
-                <?php foreach ($images as $index => $image): ?>
-                    <label class="existing-gallery-item">
-                        <img src="<?= e(resolve_media_url($image['image_url'])) ?>" alt="Ảnh sản phẩm">
-                        <div class="existing-gallery-meta">
-                            <?php if ($index === 0): ?>
-                                <span class="thumb-badge">Ảnh đại diện hiện tại</span>
-                            <?php endif; ?>
-                            <span class="hint">Tích để xoá ảnh này</span>
-                            <input type="checkbox" name="remove_image_ids[]" value="<?= (int)$image['id'] ?>">
-                        </div>
-                    </label>
-                <?php endforeach; ?>
-            </div>
+    <?php if (!empty($errors)): ?>
+        <div class="alert error">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <?= e(implode(' ', $errors)) ?>
         </div>
     <?php endif; ?>
 
-    <div class="full card-actions">
-        <button class="btn" type="submit">Lưu sản phẩm</button>
-        <a class="btn btn-light" href="<?= BASE_URL ?>/admin/products.php">Hủy</a>
-    </div>
-</form>
+    <form method="post" enctype="multipart/form-data" class="card-box">
+        <div class="form-grid">
+            
+            <div class="form-group col-full">
+                <label>Tên sản phẩm <span class="required-mark">*</span></label>
+                <input type="text" name="product_name" class="form-control" value="<?= e($product['product_name']) ?>" required placeholder="VD: Áo Thun Nam Có Cổ">
+            </div>
+
+            <div class="form-group">
+                <label>Mã sản phẩm</label>
+                <input type="text" class="form-control" value="<?= e($product['product_code']) ?>" readonly>
+                <span class="hint">Hệ thống tự động tạo mã SP.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Danh mục <span class="required-mark">*</span></label>
+                <select name="category_id" id="categorySelect" class="form-control" required>
+                    <option value="">-- Chọn danh mục --</option>
+                    <?php foreach ($categories as $cat): ?>
+                        <option value="<?= (int)$cat['id'] ?>" <?= (int)$product['category_id'] === (int)$cat['id'] ? 'selected' : '' ?>><?= e($cat['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Loại sản phẩm <span class="required-mark">*</span></label>
+                <select name="product_type_id" id="productTypeSelect" class="form-control" required>
+                    <option value="">-- Chọn loại sản phẩm --</option>
+                    <?php foreach ($productTypes as $type): ?>
+                        <option
+                            value="<?= (int)$type['id'] ?>"
+                            data-category-id="<?= (int)$type['category_id'] ?>"
+                            <?= (int)$product['product_type_id'] === (int)$type['id'] ? 'selected' : '' ?>
+                        >
+                            <?= e($type['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="hint">Chỉ hiển thị các loại thuộc danh mục đã chọn.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Phong cách</label>
+                <select name="style_id" class="form-control">
+                    <option value="">-- Chọn phong cách --</option>
+                    <?php foreach ($styles as $style): ?>
+                        <option value="<?= (int)$style['id'] ?>" <?= (int)$product['style_id'] === (int)$style['id'] ? 'selected' : '' ?>><?= e($style['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Giới tính <span class="required-mark">*</span></label>
+                <select name="gender" class="form-control" required>
+                    <?php foreach (product_gender_options() as $gender): ?>
+                        <option value="<?= e($gender) ?>" <?= $product['gender'] === $gender ? 'selected' : '' ?>><?= e($gender) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Giá gốc (VNĐ) <span class="required-mark">*</span></label>
+                <input type="text" name="original_price" class="form-control money-input" inputmode="numeric" autocomplete="off" value="<?= e($formatPriceInput($product['original_price'])) ?>" required>
+            </div>
+
+            <div class="form-group">
+                <label>Giá khuyến mãi (VNĐ)</label>
+                <input type="text" name="sale_price" class="form-control money-input" inputmode="numeric" autocomplete="off" value="<?= e($formatPriceInput($product['sale_price'])) ?>">
+                <span class="hint">Để trống nếu không Sale.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Chất liệu</label>
+                <input type="text" name="material" class="form-control" value="<?= e($product['material']) ?>" placeholder="VD: Cotton, Kaki...">
+            </div>
+
+            <div class="form-group">
+                <label>Kích thước (Size)</label>
+                <input type="text" name="size" class="form-control" placeholder="VD: S, M, L, XL" value="<?= e($product['size']) ?>">
+            </div>
+
+            <div class="form-group">
+                <label>Màu sắc</label>
+                <input type="text" name="color" class="form-control" placeholder="VD: Đen, Trắng, Xám" value="<?= e($product['color']) ?>">
+            </div>
+
+            <div class="form-group">
+                <label>Số lượng trong kho</label>
+                <input type="number" name="quantity" class="form-control" min="0" value="<?= e((string)$product['quantity']) ?>">
+            </div>
+
+            <div class="form-group col-full">
+                <label>Link Zalo nhập hàng / Nguồn</label>
+                <input type="url" name="import_link" class="form-control" value="<?= e($product['import_link']) ?>" placeholder="https://zalo.me/...">
+            </div>
+
+            <div class="form-group col-full">
+                <label>Tình trạng sản phẩm</label>
+                <div class="checkbox-list">
+                    <?php if (empty($productConditions)): ?>
+                        <span class="hint">Chưa có tình trạng nào. Hãy thêm tại mục Quản lý tình trạng.</span>
+                    <?php else: ?>
+                        <?php foreach ($productConditions as $condition): ?>
+                            <label class="checkbox-chip">
+                                <input type="checkbox" name="condition_ids[]" value="<?= (int)$condition['id'] ?>" <?= in_array((int)$condition['id'], $selectedConditions, true) ? 'checked' : '' ?>>
+                                <span><?= e($condition['name']) ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="form-group col-full">
+                <label>Mô tả ngắn</label>
+                <textarea name="short_description" class="form-control" rows="3" placeholder="Đoạn văn ngắn gọn giới thiệu điểm nổi bật của SP..."><?= e($product['short_description']) ?></textarea>
+            </div>
+
+            <div class="form-group col-full">
+                <label>Thông tin chi tiết</label>
+                <textarea name="information" class="form-control" rows="6" placeholder="Mô tả chi tiết về sản phẩm, hướng dẫn bảo quản, nguồn gốc..."><?= e($product['information']) ?></textarea>
+            </div>
+
+            <div class="form-group col-full">
+                <label>Trạng thái hiển thị</label>
+                <label class="checkbox-inline">
+                    <input type="checkbox" name="is_active" value="1" <?= !empty($product['is_active']) ? 'checked' : '' ?>>
+                    Hiển thị sản phẩm này trên gian hàng Website
+                </label>
+            </div>
+
+            <div class="form-group col-full" style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px dashed var(--line-strong);">
+                <label style="color: var(--primary-color); font-size: 15px;">Thư viện ảnh sản phẩm <span class="required-mark">*</span></label>
+                <input type="file" name="gallery_files[]" accept="image/png,image/jpeg,image/webp" multiple <?= $isEdit ? '' : 'required' ?> style="margin-top: 10px; width: 100%;">
+                <span class="hint">Bạn có thể chọn <strong>nhiều ảnh</strong> cùng lúc. Ảnh đầu tiên tải lên sẽ tự động làm <strong>Ảnh đại diện</strong> ngoài trang chủ. Hỗ trợ định dạng: JPG, PNG, WEBP.</span>
+            </div>
+
+            <?php if (!empty($images)): ?>
+                <div class="col-full existing-gallery">
+                    <h3>Quản lý ảnh hiện tại</h3>
+                    <div class="existing-gallery-grid">
+                        <?php foreach ($images as $index => $image): ?>
+                            <label class="existing-gallery-item">
+                                <img src="<?= e(resolve_media_url($image['image_url'])) ?>" alt="Ảnh SP">
+                                <div class="existing-gallery-meta">
+                                    <?php if ($index === 0): ?>
+                                        <span class="thumb-badge">Ảnh chính</span>
+                                    <?php endif; ?>
+                                    <span class="hint" style="margin-top: 2px;">Tích để xoá</span>
+                                    <input type="checkbox" name="remove_image_ids[]" value="<?= (int)$image['id'] ?>">
+                                </div>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-big" type="submit">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                Lưu thông tin sản phẩm
+            </button>
+            <a class="btn btn-light btn-big" href="<?= BASE_URL ?>/admin/products.php">Hủy thao tác</a>
+        </div>
+    </form>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
