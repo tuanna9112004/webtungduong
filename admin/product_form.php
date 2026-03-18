@@ -2,6 +2,80 @@
 require_once __DIR__ . '/../includes/functions.php';
 admin_require_login();
 
+// ==========================================================================
+// API AJAX: TỰ ĐỘNG SINH MÃ SẢN PHẨM DỰA TRÊN DANH MỤC
+// ==========================================================================
+if (isset($_GET['action']) && $_GET['action'] === 'get_next_code') {
+    header('Content-Type: application/json');
+    $catId = (int)($_GET['category_id'] ?? 0);
+    $newCode = '';
+    
+    if ($catId > 0) {
+        $stmt = db()->prepare("SELECT name FROM categories WHERE id = ?");
+        $stmt->execute([$catId]);
+        $catName = $stmt->fetchColumn();
+        
+        if ($catName) {
+            // Hàm chuyển tiếng Việt có dấu thành không dấu
+            $unaccent = static function($str) {
+                $str = preg_replace("/(à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ)/", 'a', $str);
+                $str = preg_replace("/(è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ)/", 'e', $str);
+                $str = preg_replace("/(ì|í|ị|ỉ|ĩ)/", 'i', $str);
+                $str = preg_replace("/(ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ)/", 'o', $str);
+                $str = preg_replace("/(ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ)/", 'u', $str);
+                $str = preg_replace("/(ỳ|ý|ỵ|ỷ|ỹ)/", 'y', $str);
+                $str = preg_replace("/(đ)/", 'd', $str);
+                $str = preg_replace("/(À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ)/", 'A', $str);
+                $str = preg_replace("/(È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ)/", 'E', $str);
+                $str = preg_replace("/(Ì|Í|Ị|Ỉ|Ĩ)/", 'I', $str);
+                $str = preg_replace("/(Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ)/", 'O', $str);
+                $str = preg_replace("/(Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ)/", 'U', $str);
+                $str = preg_replace("/(Ỳ|Ý|Ỵ|Ỷ|Ỹ)/", 'Y', $str);
+                $str = preg_replace("/(Đ)/", 'D', $str);
+                return strtoupper(trim($str));
+            };
+            
+            $cleanName = $unaccent($catName);
+            // Bỏ các ký tự đặc biệt, chỉ giữ chữ và số
+            $cleanName = preg_replace('/[^A-Z0-9 ]/', '', $cleanName);
+            $words = array_values(array_filter(explode(' ', $cleanName)));
+            
+            $prefix = '';
+            if (count($words) === 1) {
+                $prefix = substr($words[0], 0, 2); // vd: "ÁO" -> "AO"
+            } else {
+                foreach ($words as $word) {
+                    $prefix .= substr($word, 0, 1); // vd: "ÁO KHOÁC" -> "AK"
+                }
+            }
+            
+            if (strlen($prefix) > 4) {
+                $prefix = substr($prefix, 0, 4); // Giới hạn tiền tố tối đa 4 ký tự
+            }
+            if (empty($prefix)) {
+                $prefix = 'SP';
+            }
+            
+            // Tìm mã SP cao nhất có cùng prefix hiện tại trong DB
+            $stmt = db()->prepare("SELECT product_code FROM products WHERE product_code LIKE ? ORDER BY LENGTH(product_code) DESC, product_code DESC LIMIT 1");
+            $stmt->execute([$prefix . '\_%']);
+            $latestCode = $stmt->fetchColumn();
+            
+            if ($latestCode) {
+                $parts = explode('_', $latestCode);
+                $num = (int)end($parts);
+                $newCode = $prefix . '_' . str_pad($num + 1, 3, '0', STR_PAD_LEFT);
+            } else {
+                $newCode = $prefix . '_001';
+            }
+        }
+    }
+    
+    echo json_encode(['code' => $newCode]);
+    exit;
+}
+// ==========================================================================
+
 $formatPriceInput = static function ($value): string {
     if ($value === null || $value === '') {
         return '';
@@ -251,7 +325,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             replace_product_gallery($id, $galleryImages);
             sync_product_conditions($id, $selectedConditions);
         } else {
-            $productCode = generate_unique_product_code();
+            // Lấy mã sản phẩm từ Form (đã sinh ra dựa trên chọn danh mục)
+            $productCode = trim($_POST['product_code'] ?? '');
+            if (empty($productCode)) {
+                $productCode = generate_unique_product_code(); // Backup
+            }
 
             $galleryImages = $uploadedImages;
             $primaryTarget = null;
@@ -303,7 +381,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $product = array_merge($product, $data, [
-        'product_code' => $isEdit ? ($product['product_code'] ?? '') : next_product_code_preview(),
+        'product_code' => trim($_POST['product_code'] ?? ($isEdit ? ($product['product_code'] ?? '') : next_product_code_preview())),
         'thumbnail' => $product['thumbnail'] ?? '',
     ]);
 
@@ -356,20 +434,21 @@ require_once __DIR__ . '/../includes/header.php';
     font-size: 24px;
     color: var(--text-main);
     margin: 0;
+    font-weight: 700;
 }
 
 .card-box {
     background: var(--bg-white, #fff);
     border-radius: var(--radius-lg, 12px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     border: 1px solid var(--line-light, #e5e7eb);
-    padding: 24px;
+    padding: 30px;
 }
 
 .form-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 24px;
 }
 
 .col-full {
@@ -384,16 +463,16 @@ require_once __DIR__ . '/../includes/header.php';
 
 .form-group label {
     display: block;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-main, #1f2937);
     margin-bottom: 8px;
 }
 
 .form-group .hint {
     display: block;
-    font-size: 12px;
-    color: #9ca3af;
+    font-size: 13px;
+    color: #6b7280;
     margin-top: 6px;
     font-weight: 400;
     line-height: 1.5;
@@ -401,35 +480,37 @@ require_once __DIR__ . '/../includes/header.php';
 
 .required-mark {
     color: var(--danger-color, #ef4444);
+    margin-left: 2px;
 }
 
 .form-control {
     width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--line-strong, #d1d5db);
-    border-radius: var(--radius-md, 8px);
+    padding: 12px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
     font-size: 14px;
-    color: var(--text-main, #111827);
-    background-color: var(--bg-white, #fff);
+    color: #1f2937;
+    background-color: #fff;
     font-family: inherit;
     outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    min-height: 42px;
+    transition: all 0.2s ease;
+    min-height: 46px;
 }
 
 .form-control:focus {
     border-color: var(--primary-color, #000);
-    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.05);
 }
 
 .form-control[readonly] {
     background-color: #f3f4f6;
     cursor: not-allowed;
+    color: #6b7280;
 }
 
 textarea.form-control {
     resize: vertical;
-    min-height: 80px;
+    min-height: 100px;
 }
 
 .checkbox-list {
@@ -442,15 +523,16 @@ textarea.form-control {
 .checkbox-chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    background: #f1f5f9;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 13px;
+    gap: 8px;
+    background: #f8fafc;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    border: 1px solid transparent;
+    border: 1px solid #e2e8f0;
     transition: all 0.2s;
+    color: #334155;
 }
 
 .checkbox-chip input[type="checkbox"] {
@@ -462,58 +544,119 @@ textarea.form-control {
 }
 
 .checkbox-chip:hover {
-    border-color: var(--line-strong, #d1d5db);
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+}
+
+.checkbox-chip:has(input:checked) {
+    background: #f0fdf4;
+    border-color: #16a34a;
+    color: #16a34a;
 }
 
 .checkbox-inline {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 14px;
+    gap: 12px;
+    font-size: 15px;
     font-weight: 600;
-    color: var(--text-main, #111827);
+    color: #1f2937;
     cursor: pointer;
-    padding: 10px 15px;
+    padding: 14px 20px;
     background: #f8fafc;
-    border: 1px solid var(--line-light, #e5e7eb);
+    border: 1px solid #e5e7eb;
     border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.checkbox-inline:hover {
+    background: #f1f5f9;
 }
 
 .checkbox-inline input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     accent-color: var(--primary-color, #000);
     flex-shrink: 0;
 }
 
-.upload-box {
+.upload-container {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.upload-title {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    margin-bottom: 16px !important;
+    color: #111827 !important;
+}
+
+.upload-dropzone {
+    position: relative;
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
     background: #f8fafc;
-    padding: 15px;
-    border-radius: 8px;
-    border: 1px dashed var(--line-strong, #d1d5db);
+    padding: 40px 20px;
+    text-align: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
 }
 
-.upload-box label.upload-title {
-    color: var(--primary-color, #000);
-    font-size: 15px;
-    margin-bottom: 8px;
+.upload-dropzone:hover {
+    border-color: var(--primary-color, #000);
+    background: #f1f5f9;
 }
 
-.upload-box input[type="file"] {
-    margin-top: 10px;
+.upload-dropzone input[type="file"] {
+    position: absolute;
+    inset: 0;
     width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+}
+
+.upload-placeholder svg {
+    color: #64748b;
+    width: 40px;
+    height: 40px;
+}
+
+.upload-placeholder .text-main {
+    font-size: 15px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.upload-placeholder .text-sub {
+    font-size: 13px;
+    color: #64748b;
 }
 
 .upload-status {
-    margin-top: 8px;
-    color: #2563eb;
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 500;
     min-height: 20px;
 }
 
 .existing-gallery {
-    margin-top: 10px;
-    padding-top: 20px;
-    border-top: 1px dashed var(--line-strong, #d1d5db);
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e7eb;
 }
 
 .preview-gallery {
@@ -524,116 +667,148 @@ textarea.form-control {
 
 .existing-gallery h3 {
     font-size: 16px;
-    margin-bottom: 15px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 16px;
 }
 
 .existing-gallery-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 15px;
+    gap: 16px;
 }
 
 .existing-gallery-item {
-    width: 140px;
+    width: 160px;
     position: relative;
-    border: 1px solid var(--line-light, #e5e7eb);
-    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
     overflow: hidden;
     background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    transition: all 0.2s ease;
+}
+
+.existing-gallery-item:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 .existing-gallery-item img {
     width: 100%;
-    height: 120px;
+    height: 160px;
     object-fit: cover;
     display: block;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .existing-gallery-meta {
-    padding: 8px;
-    text-align: center;
+    padding: 12px;
     background: #f8fafc;
-    border-top: 1px solid var(--line-light, #e5e7eb);
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
+    gap: 8px;
 }
 
 .thumb-badge {
     background: var(--primary-color, #000);
     color: #fff;
-    font-size: 10px;
-    padding: 2px 6px;
+    font-size: 11px;
+    padding: 4px 8px;
     border-radius: 4px;
     font-weight: 600;
-    align-self: center;
+    align-self: flex-start;
+    margin-bottom: 4px;
 }
 
 .mini-option {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
+    gap: 8px;
+    font-size: 13px;
     cursor: pointer;
-    color: var(--text-main, #111827);
-    line-height: 1.4;
-    text-align: left;
+    color: #334155;
+    font-weight: 500;
 }
 
 .mini-option input[type="radio"],
 .mini-option input[type="checkbox"] {
     accent-color: var(--primary-color, #000);
     flex-shrink: 0;
+    width: 16px;
+    height: 16px;
 }
 
 .mini-option.danger {
-    color: #b91c1c;
+    color: #dc2626;
+}
+.mini-option.danger input[type="checkbox"] {
+    accent-color: #dc2626;
 }
 
 .preview-file-name {
-    font-size: 11px;
-    color: #6b7280;
+    font-size: 12px;
+    color: #64748b;
     line-height: 1.4;
     word-break: break-word;
     text-align: left;
+    margin-bottom: 4px;
 }
 
 .existing-gallery-item.is-removing {
-    opacity: 0.55;
+    opacity: 0.5;
     border-color: #fca5a5;
-    background: #fff5f5;
+    background: #fef2f2;
+}
+.existing-gallery-item.is-removing img {
+    filter: grayscale(80%);
 }
 
 .alert {
-    padding: 14px 16px;
+    padding: 16px 20px;
     border-radius: 8px;
     margin-bottom: 24px;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 500;
-    line-height: 1.6;
+    line-height: 1.5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .alert.error {
     background-color: #fef2f2;
-    color: #b91c1c;
-    border: 1px solid #fca5a5;
+    color: #991b1b;
+    border: 1px solid #fecaca;
 }
 
 .form-actions {
     display: flex;
-    gap: 12px;
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: 1px solid var(--line-light, #e5e7eb);
+    gap: 16px;
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.form-actions .btn-big {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
 }
 
 @media (max-width: 768px) {
     .form-actions {
         flex-direction: column;
     }
-
     .form-actions .btn {
+        width: 100%;
+    }
+    .existing-gallery-item {
         width: 100%;
     }
 }
@@ -647,12 +822,12 @@ textarea.form-control {
 
     <?php if (!empty($errors)): ?>
         <div class="alert error">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="12" y1="8" x2="12" y2="12"></line>
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
-            <?= e(implode(' ', $errors)) ?>
+            <div><?= e(implode('<br>', $errors)) ?></div>
         </div>
     <?php endif; ?>
 
@@ -674,8 +849,15 @@ textarea.form-control {
 
             <div class="form-group">
                 <label>Mã sản phẩm</label>
-                <input type="text" class="form-control" value="<?= e($product['product_code']) ?>" readonly>
-                <span class="hint">Hệ thống tự động tạo mã SP.</span>
+                <input 
+                    type="text" 
+                    id="product_code" 
+                    name="product_code" 
+                    class="form-control" 
+                    value="<?= e($product['product_code']) ?>" 
+                    readonly
+                >
+                <span class="hint">Hệ thống sẽ tự động tạo mã SP dựa theo danh mục bạn chọn.</span>
             </div>
 
             <div class="form-group">
@@ -881,19 +1063,28 @@ textarea.form-control {
                 </label>
             </div>
 
-            <div class="form-group col-full upload-box">
+            <div class="form-group col-full upload-container">
                 <label class="upload-title" for="galleryFiles">
                     Thư viện ảnh sản phẩm <span class="required-mark">*</span>
                 </label>
 
-                <input
-                    id="galleryFiles"
-                    type="file"
-                    name="gallery_files[]"
-                    accept="image/png,image/jpeg,image/webp"
-                    multiple
-                    <?= $isEdit ? '' : 'required' ?>
-                >
+                <div class="upload-dropzone">
+                    <input
+                        id="galleryFiles"
+                        type="file"
+                        name="gallery_files[]"
+                        accept="image/png,image/jpeg,image/webp"
+                        multiple
+                        <?= $isEdit ? '' : 'required' ?>
+                    >
+                    <div class="upload-placeholder">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        <span class="text-main">Nhấn để chọn ảnh hoặc kéo thả vào đây</span>
+                        <span class="text-sub">Hệ thống sẽ nén nhẹ và tải nền ngay lập tức. Tối đa 8 ảnh/lần.</span>
+                    </div>
+                </div>
 
                 <input
                     type="hidden"
@@ -902,17 +1093,12 @@ textarea.form-control {
                     value='<?= e($stagedUploadPathsJson) ?>'
                 >
 
-                <div id="uploadHint" class="hint">
-                    Bạn có thể chọn <strong>nhiều ảnh</strong> cùng lúc. Hệ thống sẽ nén nhẹ và tải nền ngay sau khi chọn để lúc bấm <strong>Lưu</strong> gần như tức thì.
-                    Nên chọn tối đa <strong>8 ảnh/lần</strong>.
+                <div id="uploadStatus" class="upload-status"></div>
+
+                <div class="existing-gallery preview-gallery" id="newPreviewBlock" style="display:none;">
+                    <h3>Ảnh mới vừa tải lên</h3>
+                    <div class="existing-gallery-grid" id="newPreviewGrid"></div>
                 </div>
-
-                <div id="uploadStatus" class="hint upload-status"></div>
-            </div>
-
-            <div class="col-full existing-gallery preview-gallery" id="newPreviewBlock" style="display:none;">
-                <h3>Ảnh mới vừa chọn</h3>
-                <div class="existing-gallery-grid" id="newPreviewGrid"></div>
             </div>
 
             <?php if (!empty($images)): ?>
@@ -961,7 +1147,7 @@ textarea.form-control {
         </div>
 
         <div class="form-actions">
-            <button class="btn btn-big" type="submit" id="submitBtn">
+            <button class="btn btn-primary btn-big" type="submit" id="submitBtn">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
                     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                     <polyline points="17 21 17 13 7 13 7 21"></polyline>
@@ -988,6 +1174,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const newPreviewGrid = document.getElementById('newPreviewGrid');
     const tempUploadEndpoint = <?= json_encode(BASE_URL . '/admin/upload_temp_images.php') ?>;
     const baseUrl = <?= json_encode(BASE_URL) ?>;
+    const isEditMode = <?= $isEdit ? 'true' : 'false' ?>;
 
     let compressedFilesCache = [];
     let isCompressing = false;
@@ -997,10 +1184,38 @@ document.addEventListener('DOMContentLoaded', function () {
     let previewObjectUrls = [];
     let stagedUploads = [];
 
+    // TỰ ĐỘNG LẤY MÃ SẢN PHẨM MỚI KHI THAY ĐỔI DANH MỤC
+    if (categorySelect && !isEditMode) {
+        categorySelect.addEventListener('change', function () {
+            const catId = this.value;
+            const codeInput = document.getElementById('product_code');
+            
+            if (!catId) {
+                return;
+            }
+
+            codeInput.value = 'Đang tự tạo mã...';
+            
+            fetch(`?action=get_next_code&category_id=${catId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.code) {
+                        codeInput.value = data.code;
+                    } else {
+                        codeInput.value = '';
+                    }
+                })
+                .catch(err => {
+                    console.error('Lỗi khi lấy mã SP:', err);
+                    codeInput.value = '';
+                });
+        });
+    }
+
     function setUploadStatus(message, type = '') {
         if (!uploadStatus) return;
         uploadStatus.textContent = message || '';
-        uploadStatus.style.color = type === 'error' ? '#b91c1c' : (type === 'success' ? '#047857' : '#2563eb');
+        uploadStatus.style.color = type === 'error' ? '#dc2626' : (type === 'success' ? '#16a34a' : '#2563eb');
     }
 
     function setSubmitBusyState() {
@@ -1036,6 +1251,17 @@ document.addEventListener('DOMContentLoaded', function () {
     function syncHiddenUploadedPaths() {
         if (!uploadedGalleryPathsInput) return;
         uploadedGalleryPathsInput.value = JSON.stringify(stagedUploads.map(item => item.path));
+        updateValidationState(); 
+    }
+
+    function updateValidationState() {
+        if (!isEditMode && galleryInput) {
+            if (stagedUploads.length > 0) {
+                galleryInput.removeAttribute('required'); 
+            } else {
+                galleryInput.setAttribute('required', 'required'); 
+            }
+        }
     }
 
     function syncTypeOptions() {
@@ -1149,10 +1375,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function renderPreviewItems(items) {
+    function renderPreviewItems(items, preserveUrls = false) {
         if (!newPreviewBlock || !newPreviewGrid) return;
 
-        clearPreviewUrls();
+        if (!preserveUrls) {
+            clearPreviewUrls();
+        }
         newPreviewGrid.innerHTML = '';
 
         const displayItems = Array.isArray(items) ? items : [];
@@ -1224,6 +1452,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderNewPreviewFromFiles(files) {
+        clearPreviewUrls();
+
         const items = Array.from(files || []).map((file) => {
             const objectUrl = URL.createObjectURL(file);
             previewObjectUrls.push(objectUrl);
@@ -1236,7 +1466,7 @@ document.addEventListener('DOMContentLoaded', function () {
             };
         });
 
-        renderPreviewItems(items);
+        renderPreviewItems(items, true);
     }
 
     function renderNewPreviewFromUploads(items) {
@@ -1407,19 +1637,19 @@ document.addEventListener('DOMContentLoaded', function () {
         const files = Array.from(fileList || []);
         compressedFilesCache = [];
 
+        // --- SỬA THÊM: Xóa ngay state cũ khi chọn ảnh mới để đảm bảo thay thế hoàn toàn ---
+        stagedUploads = [];
+        syncHiddenUploadedPaths();
+        clearNewPreview();
+        setUploadStatus('');
+        // -----------------------------------------------------------------------------------
+
         if (!files.length) {
-            stagedUploads = [];
-            syncHiddenUploadedPaths();
-            setUploadStatus('');
-            clearNewPreview();
             return;
         }
 
         if (files.length > 8) {
             galleryInput.value = '';
-            stagedUploads = [];
-            syncHiddenUploadedPaths();
-            clearNewPreview();
             setUploadStatus('Chỉ nên chọn tối đa 8 ảnh mỗi lần.', 'error');
             return;
         }
@@ -1457,7 +1687,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             syncHiddenUploadedPaths();
             renderNewPreviewFromUploads(stagedUploads);
-            galleryInput.value = '';
+            galleryInput.value = ''; 
             compressedFilesCache = [];
 
             setUploadStatus(

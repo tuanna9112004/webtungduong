@@ -14,30 +14,48 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title><?= isset($pageTitle) ? e($pageTitle) : 'Shop quần áo'; ?></title>
+    <title><?= isset($pageTitle) ? e($pageTitle) : 'Shop quần áo Cao cấp'; ?></title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/style.css">
 
     <style>
         /* ==========================================================================
-           LUXURY HEADER & FLOATING ELEMENTS STYLESHEET
+           LUXURY & MINIMALIST STYLESHEET
            ========================================================================== */
         
-        /* HEADER GLASSMORPHISM */
+        :root {
+            --lux-dark: #121212;
+            --lux-light: #ffffff;
+            --lux-gold: #cda55d;
+            --lux-gold-hover: #e3be75;
+            --lux-muted: #888888;
+            --lux-border: rgba(0, 0, 0, 0.08);
+            --transition-smooth: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--lux-dark);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background-color: #fafafa;
+        }
+
+        /* PREMIUM GLASSMORPHISM HEADER */
         .site-header {
-            background-color: rgba(255, 255, 255, 0.75);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: saturate(180%) blur(25px);
+            -webkit-backdrop-filter: saturate(180%) blur(25px);
+            box-shadow: 0 4px 40px rgba(0, 0, 0, 0.03);
+            border-bottom: 1px solid var(--lux-border);
             position: sticky;
             top: 0;
             z-index: 1000;
-            padding: 15px 0;
-            transition: all 0.4s ease;
+            padding: 18px 0;
+            transition: var(--transition-smooth);
         }
 
         .header-wrap {
@@ -46,59 +64,73 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
             align-items: center;
         }
 
+        /* LUXURY LOGO */
         .logo {
             display: flex;
             align-items: center;
-            gap: 12px;
-            font-weight: 800;
-            font-size: 20px;
-            letter-spacing: -0.5px;
+            gap: 15px;
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 22px;
+            letter-spacing: 0.5px;
             text-transform: uppercase;
-            color: var(--primary-color, #111);
+            color: var(--lux-gold); /* Chuyển sang màu vàng luxury mặc định */
             text-decoration: none;
+            transition: var(--transition-smooth);
         }
 
         .logo-mark-img {
-            border-radius: 12px;
+            border-radius: 50%;
             object-fit: cover;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: var(--transition-smooth);
+            border: 1px solid var(--lux-border);
+        }
+
+        .logo:hover {
+            color: var(--lux-gold-hover);
+            text-shadow: 0 4px 15px rgba(205, 165, 93, 0.3);
         }
 
         .logo:hover .logo-mark-img {
-            transform: scale(1.05) rotate(5deg);
+            transform: scale(1.03) translateY(-2px);
+            box-shadow: 0 8px 20px rgba(205, 165, 93, 0.2);
+            border-color: var(--lux-gold);
         }
 
+        /* ELEGANT MENU */
         .site-header .menu {
             display: flex;
             align-items: center;
-            gap: 30px;
+            gap: 40px;
         }
 
         .site-header .menu a {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--text-muted, #8e8e9f);
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--lux-muted);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 1.5px;
             position: relative;
             text-decoration: none;
-            transition: color 0.3s ease;
+            transition: var(--transition-smooth);
+            padding: 5px 0;
         }
 
         .site-header .menu a::after {
             content: '';
             position: absolute;
             width: 0;
-            height: 2px;
-            bottom: -4px;
-            left: 0;
-            background-color: var(--primary-color, #111);
-            transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            height: 1px;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--lux-gold);
+            transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         .site-header .menu a:hover {
-            color: var(--primary-color, #111);
+            color: var(--lux-dark);
         }
 
         .site-header .menu a:hover::after {
@@ -110,93 +142,92 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
             display: none;
             background: transparent;
             border: none;
-            color: var(--primary-color, #111);
+            color: var(--lux-dark);
             cursor: pointer;
-            padding: 8px;
-            border-radius: 8px;
-            transition: background 0.2s;
+            padding: 10px;
+            transition: var(--transition-smooth);
         }
         
         .mobile-menu-toggle:hover {
-            background: rgba(0,0,0,0.05);
+            color: var(--lux-gold);
         }
 
-        /* Ẩn hoàn toàn tab bar cũ */
         .tab-bar-mobile {
             display: none !important;
         }
 
-        /* FLOATING MUSIC TOGGLE - LUXURY GLASS */
+        /* FLOATING MUSIC TOGGLE - PREMIUM TACTILE FEEL */
         .floating-music-toggle {
             position: fixed;
-            right: 25px;
-            bottom: 100px;
+            right: 30px;
+            bottom: 100px; /* Nâng lề dưới lên 100px để chừa chỗ cho các nút khác */
             z-index: 999;
             display: inline-flex;
             align-items: center;
             gap: 12px;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 999px;
-            padding: 12px 20px;
-            background: rgba(255, 255, 255, 0.85);
-            color: var(--primary-color, #111);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(205, 165, 93, 0.3);
+            border-radius: 50px;
+            padding: 14px 24px;
+            background: rgba(255, 255, 255, 0.9);
+            color: var(--lux-dark);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
             cursor: pointer;
-            font: inherit;
-            font-size: 14px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 1px;
             text-transform: uppercase;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
+            transition: var(--transition-smooth);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .floating-music-toggle:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-            background: #ffffff;
+            transform: translateY(-4px);
+            box-shadow: 0 15px 45px rgba(205, 165, 93, 0.15);
+            border-color: var(--lux-gold);
+            color: var(--lux-gold);
         }
 
         .floating-music-toggle:active {
-            transform: translateY(0) scale(0.95);
+            transform: translateY(1px) scale(0.98);
         }
 
         .floating-music-toggle svg {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             flex-shrink: 0;
-            transition: transform 0.3s;
+            transition: var(--transition-smooth);
+            stroke-width: 1.5;
         }
 
         .floating-music-toggle .music-icon-off {
             display: none;
-            color: var(--text-muted, #8e8e9f);
         }
 
-        /* Trạng thái đang phát nhạc */
+        /* Trạng thái đang phát nhạc - Đảo màu sang trọng */
         .floating-music-toggle.is-playing {
-            background: rgba(17, 17, 17, 0.9);
-            color: #ffffff;
-            border-color: rgba(0,0,0,0.5);
-            box-shadow: 0 10px 30px rgba(17, 17, 17, 0.3);
+            background: var(--lux-dark);
+            color: var(--lux-light);
+            border-color: var(--lux-dark);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .floating-music-toggle.is-playing:hover {
+            background: #222;
+            color: var(--lux-gold);
         }
 
         .floating-music-toggle.is-playing .music-icon-on {
             display: none;
         }
 
-        .floating-music-toggle.is-playing .music-icon-off {
-            display: block;
-            color: #ffffff;
-        }
-
-        /* Animation sóng âm khi nhạc phát */
+        /* Animation sóng âm thanh lịch */
         .music-waves {
             display: none;
             align-items: center;
-            gap: 3px;
-            height: 15px;
+            gap: 4px;
+            height: 16px;
         }
         
         .floating-music-toggle.is-playing .music-waves {
@@ -204,24 +235,24 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
         }
         
         .floating-music-toggle.is-playing .music-icon-off {
-            display: none; /* Ẩn icon off thay bằng sóng âm */
+            display: none; 
         }
 
         .wave {
-            width: 3px;
+            width: 2px;
             height: 100%;
-            background-color: var(--danger-color, #ff3366);
-            border-radius: 3px;
-            animation: bounce 1.2s ease-in-out infinite;
+            background-color: var(--lux-gold);
+            border-radius: 2px;
+            animation: elegant-bounce 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
 
         .wave:nth-child(1) { animation-delay: 0.0s; }
-        .wave:nth-child(2) { animation-delay: -0.2s; }
-        .wave:nth-child(3) { animation-delay: -0.4s; }
-        .wave:nth-child(4) { animation-delay: -0.6s; }
+        .wave:nth-child(2) { animation-delay: -0.3s; }
+        .wave:nth-child(3) { animation-delay: -0.6s; }
+        .wave:nth-child(4) { animation-delay: -0.9s; }
 
-        @keyframes bounce {
-            0%, 100% { transform: scaleY(0.3); opacity: 0.6; }
+        @keyframes elegant-bounce {
+            0%, 100% { transform: scaleY(0.2); opacity: 0.5; }
             50% { transform: scaleY(1); opacity: 1; }
         }
 
@@ -233,7 +264,7 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
         /* MOBILE OPTIMIZATION */
         @media (max-width: 768px) {
             .site-header {
-                padding: 15px;
+                padding: 12px 20px;
             }
 
             .header-wrap {
@@ -242,7 +273,12 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
             }
 
             .logo span {
-                font-size: 18px;
+                font-size: 16px;
+            }
+            
+            .logo-mark-img {
+                width: 36px;
+                height: 36px;
             }
 
             .mobile-menu-toggle {
@@ -257,32 +293,32 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
                 top: 100%;
                 left: 0;
                 right: 0;
-                background-color: rgba(255,255,255,0.95);
-                backdrop-filter: blur(20px);
-                -webkit-backdrop-filter: blur(20px);
+                background-color: rgba(255,255,255,0.98);
+                backdrop-filter: blur(30px);
+                -webkit-backdrop-filter: blur(30px);
                 flex-direction: column;
-                padding: 20px;
-                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-                border-top: 1px solid rgba(0,0,0,0.05);
-                border-radius: 0 0 24px 24px;
+                padding: 10px 0 30px 0;
+                box-shadow: 0 30px 60px rgba(0, 0, 0, 0.08);
+                border-top: 1px solid var(--lux-border);
                 gap: 0;
             }
 
             .site-header .menu a {
-                padding: 15px 10px;
+                padding: 18px 25px;
                 display: block;
                 width: 100%;
-                border-bottom: 1px solid rgba(0,0,0,0.05);
-                font-size: 15px;
+                text-align: center;
+                font-size: 14px;
+                letter-spacing: 2px;
             }
-
-            .site-header .menu a:last-child {
-                border-bottom: none;
+            
+            .site-header .menu a::after {
+                display: none;
             }
 
             .site-header .menu.is-open {
                 display: flex;
-                animation: slideDownMenu 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+                animation: fadeSlideDown 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
             }
 
             body {
@@ -291,12 +327,13 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
 
             .floating-music-toggle {
                 right: 20px;
-                bottom: 90px;
-                padding: 12px;
-                border-radius: 50%; /* Nút tròn trên mobile */
-                width: 45px;
-                height: 45px;
+                bottom: 90px; /* Nâng lề dưới lên 90px trên điện thoại */
+                padding: 0;
+                border-radius: 50%;
+                width: 54px;
+                height: 54px;
                 justify-content: center;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             }
 
             .floating-music-toggle .music-toggle-text {
@@ -304,10 +341,10 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
             }
         }
 
-        @keyframes slideDownMenu {
+        @keyframes fadeSlideDown {
             from {
                 opacity: 0;
-                transform: translateY(-15px);
+                transform: translateY(-10px);
             }
             to {
                 opacity: 1;
@@ -331,13 +368,13 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
         aria-label="Bật hoặc tắt nhạc nền"
         title="Bật / Tắt nhạc nền"
     >
-        <svg class="music-icon-on" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg class="music-icon-on" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
             <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
         </svg>
 
-        <svg class="music-icon-off" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg class="music-icon-off" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
             <line x1="23" y1="9" x2="17" y2="15"></line>
             <line x1="17" y1="9" x2="23" y2="15"></line>
@@ -350,7 +387,7 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
             <div class="wave"></div>
         </div>
 
-        <span class="music-toggle-text">Bật nhạc</span>
+        <span class="music-toggle-text">Âm thanh</span>
     </button>
 <?php endif; ?>
 
@@ -359,18 +396,18 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
         <a class="logo" href="<?= BASE_URL ?>/index.php">
             <img
                 class="logo-mark-img"
-                src="<?= e(resolve_media_url('uploads/logo.jpg')) ?>"
+                src="<?= e(resolve_media_url('img/logo.jpg')) ?>"
                 alt="Logo Duong Mot Mi SHOP"
-                width="42"
-                height="42"
+                width="46"
+                height="46"
                 loading="eager"
                 decoding="async"
             >
-            <span>Duong Mot Mi SHOP</span>
+            <span>Duong Mot Mi</span>
         </a>
 
         <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Mở menu">
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -379,8 +416,8 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
 
         <nav class="menu" id="headerMenu">
             <a href="<?= BASE_URL ?>/index.php">Trang chủ</a>
-            <a href="<?= BASE_URL ?>/index.php#product-list">Sản phẩm</a>
-            <a target="_blank" rel="noopener noreferrer" href="<?= e(ZALO_LINK) ?>">Zalo</a>
+            <a href="<?= BASE_URL ?>/index.php#product-list">Xem Sản Phẩm</a>
+            <a target="_blank" rel="noopener noreferrer" href="<?= e(ZALO_LINK) ?>">Liên hệ</a>
         </nav>
     </div>
 </header>
@@ -409,6 +446,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const KEY_ENABLED = 'shop_bg_music_enabled_v3';
     const KEY_TIME = 'shop_bg_music_time_v3';
+    let isAutoplayResolved = false; 
 
     if (localStorage.getItem(KEY_ENABLED) === null) {
         localStorage.setItem(KEY_ENABLED, '1');
@@ -448,9 +486,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const textNode = button.querySelector('.music-toggle-text');
 
             if (textNode) {
-                textNode.textContent = isPlaying ? 'Tắt nhạc' : 'Bật nhạc';
-            } else {
-                button.textContent = isPlaying ? 'Tắt nhạc' : 'Bật nhạc';
+                textNode.textContent = isPlaying ? 'Tắt âm' : 'Âm thanh';
             }
 
             button.setAttribute('aria-pressed', isPlaying ? 'true' : 'false');
@@ -465,7 +501,21 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         try {
+            audio.volume = 0; 
             await audio.play();
+            isAutoplayResolved = true;
+            
+            // Hiệu ứng Fade-in âm thanh cho mượt mà
+            let vol = 0;
+            const fadeAudio = setInterval(() => {
+                if (vol < 0.8) {
+                    vol += 0.05;
+                    audio.volume = vol;
+                } else {
+                    clearInterval(fadeAudio);
+                }
+            }, 100);
+
             updateMusicButtons();
             return true;
         } catch (error) {
@@ -475,9 +525,19 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function pauseMusic() {
-        audio.pause();
-        saveCurrentTime();
-        updateMusicButtons();
+        // Hiệu ứng Fade-out âm thanh trước khi tắt
+        let vol = audio.volume;
+        const fadeAudio = setInterval(() => {
+            if (vol > 0.05) {
+                vol -= 0.05;
+                audio.volume = vol;
+            } else {
+                clearInterval(fadeAudio);
+                audio.pause();
+                saveCurrentTime();
+                updateMusicButtons();
+            }
+        }, 50);
     }
 
     function bindMusicButtons() {
@@ -508,7 +568,6 @@ document.addEventListener('DOMContentLoaded', function () {
             updateMusicButtons();
             return;
         }
-
         restoreCurrentTime();
         await tryPlayMusic();
     }
@@ -517,29 +576,43 @@ document.addEventListener('DOMContentLoaded', function () {
     bootstrapAutoplay();
 
     window.addEventListener('load', bootstrapAutoplay);
-
     window.addEventListener('pageshow', function () {
         bindMusicButtons();
         bootstrapAutoplay();
     });
 
-    const resumeOnFirstInteraction = async function () {
+    const forcePlayOnInteraction = async function () {
+        if (isAutoplayResolved) return; 
         if (isEnabled() && audio.paused) {
             restoreCurrentTime();
-            await tryPlayMusic();
+            try {
+                audio.volume = 0;
+                await audio.play();
+                isAutoplayResolved = true; 
+                
+                let vol = 0;
+                const fadeAudio = setInterval(() => {
+                    if (vol < 0.8) {
+                        vol += 0.05;
+                        audio.volume = vol;
+                    } else {
+                        clearInterval(fadeAudio);
+                    }
+                }, 100);
+
+                updateMusicButtons();
+            } catch (err) {}
         }
     };
 
-    document.addEventListener('click', resumeOnFirstInteraction, { once: true, capture: true });
-    document.addEventListener('touchstart', resumeOnFirstInteraction, { once: true, passive: true });
-    document.addEventListener('keydown', resumeOnFirstInteraction, { once: true });
+    const interactionEvents = ['click', 'touchstart', 'keydown', 'scroll', 'pointerdown', 'mousemove'];
+    interactionEvents.forEach(evt => {
+        document.addEventListener(evt, forcePlayOnInteraction, { capture: true, passive: true });
+    });
 
     audio.addEventListener('play', updateMusicButtons);
     audio.addEventListener('pause', updateMusicButtons);
-
-    audio.addEventListener('timeupdate', function () {
-        saveCurrentTime();
-    });
+    audio.addEventListener('timeupdate', saveCurrentTime);
 
     audio.addEventListener('ended', function () {
         localStorage.setItem(KEY_TIME, '0');
