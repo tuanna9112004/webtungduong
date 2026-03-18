@@ -455,11 +455,11 @@ body.popup-open {
         <section class="hero-pro hero-pro-upgraded">
             <div class="hero-brand-layout hero-brand-layout-home">
                 <div class="hero-brand-content">
-                    <div class="hero-feature-tags">
+                    <!-- <div class="hero-feature-tags">
                         <span>Thiết kế hiện đại</span>
                         <span>Lọc siêu nhanh</span>
                         <span>Mua qua Zalo tiện lợi</span>
-                    </div>
+                    </div> -->
 
                     <div class="hero-socials hero-socials-home">
                         <a class="social-card tiktok" href="https://www.tiktok.com/@duongmotmi2004?_r=1&_t=ZS-94ljEoOsGHP" target="_blank" rel="noopener noreferrer">

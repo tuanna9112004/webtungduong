@@ -20,6 +20,24 @@ $normalizePriceInput = static function ($value): float {
     return $clean === '' ? 0 : (float)$clean;
 };
 
+$moveImageToFront = static function (array $items, ?string $target): array {
+    $items = array_values(array_filter($items, static fn($value) => $value !== null && $value !== ''));
+
+    if ($target === null || $target === '') {
+        return $items;
+    }
+
+    $index = array_search($target, $items, true);
+    if ($index === false) {
+        return $items;
+    }
+
+    unset($items[$index]);
+    array_unshift($items, $target);
+
+    return array_values($items);
+};
+
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $isEdit = $id > 0;
 
@@ -42,6 +60,7 @@ $product = [
     'thumbnail' => '',
     'is_active' => 1,
 ];
+
 $images = [];
 $selectedConditions = [];
 $errors = [];
@@ -80,23 +99,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'import_link' => trim($_POST['import_link'] ?? ''),
         'is_active' => isset($_POST['is_active']) ? 1 : 0,
     ];
-    $selectedConditions = array_values(array_unique(array_filter(array_map('intval', $_POST['condition_ids'] ?? []), fn($value) => $value > 0)));
+
+    $selectedConditions = array_values(
+        array_unique(
+            array_filter(
+                array_map('intval', $_POST['condition_ids'] ?? []),
+                fn($value) => $value > 0
+            )
+        )
+    );
+
+    $removedImageIds = array_values(
+        array_unique(
+            array_filter(
+                array_map('intval', $_POST['remove_image_ids'] ?? []),
+                fn($value) => $value > 0
+            )
+        )
+    );
+
+    $primaryImageInput = trim($_POST['primary_image'] ?? '');
 
     if ($data['product_name'] === '') {
         $errors[] = 'Vui lòng nhập tên sản phẩm.';
     }
+
     if ($data['category_id'] <= 0) {
         $errors[] = 'Vui lòng chọn danh mục.';
     }
+
     if ($data['product_type_id'] <= 0) {
         $errors[] = 'Vui lòng chọn loại sản phẩm.';
     }
-    if ($data['category_id'] > 0 && $data['product_type_id'] > 0 && !product_type_exists_for_category($data['product_type_id'], $data['category_id'])) {
+
+    if (
+        $data['category_id'] > 0 &&
+        $data['product_type_id'] > 0 &&
+        !product_type_exists_for_category($data['product_type_id'], $data['category_id'])
+    ) {
         $errors[] = 'Loại sản phẩm không thuộc danh mục đã chọn.';
     }
+
     if ($data['original_price'] <= 0) {
         $errors[] = 'Giá gốc phải lớn hơn 0.';
     }
+
     if ($data['sale_price'] !== null && $data['sale_price'] > 0 && $data['sale_price'] > $data['original_price']) {
         $errors[] = 'Giá sale không được lớn hơn giá gốc.';
     }
@@ -107,28 +154,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Khi thêm mới, bạn phải upload ít nhất 1 ảnh sản phẩm.';
     }
 
+    if ($isEdit) {
+        $currentExistingIds = array_map(
+            'intval',
+            array_column(get_product_images($id), 'id')
+        );
+
+        $remainingExistingIds = array_values(array_diff($currentExistingIds, $removedImageIds));
+
+        if (empty($remainingExistingIds) && empty($uploadedImages)) {
+            $errors[] = 'Bạn phải giữ lại hoặc thêm ít nhất 1 ảnh sản phẩm.';
+        }
+    }
+
     if (empty($errors)) {
         if ($isEdit) {
             $existingImages = get_product_images($id);
-            $existingImageUrls = array_column($existingImages, 'image_url');
-            $removedImageIds = array_values(array_unique(array_filter(array_map('intval', $_POST['remove_image_ids'] ?? []), fn($value) => $value > 0)));
+            $existingImageMap = [];
+
+            foreach ($existingImages as $imageRow) {
+                $existingImageMap[(int)$imageRow['id']] = $imageRow['image_url'];
+            }
 
             if (!empty($removedImageIds)) {
                 $placeholders = implode(',', array_fill(0, count($removedImageIds), '?'));
                 $params = array_merge([$id], $removedImageIds);
                 $stmt = db()->prepare("DELETE FROM product_images WHERE product_id = ? AND id IN ($placeholders)");
                 $stmt->execute($params);
-                $existingImages = get_product_images($id);
-                $existingImageUrls = array_column($existingImages, 'image_url');
             }
 
-            $galleryImages = !empty($uploadedImages)
-                ? array_values(array_merge($uploadedImages, $existingImageUrls))
-                : array_values($existingImageUrls);
+            $existingImages = get_product_images($id);
+            $existingImageMap = [];
 
-            $thumbnail = !empty($galleryImages) ? $galleryImages[0] : null;
+            foreach ($existingImages as $imageRow) {
+                $existingImageMap[(int)$imageRow['id']] = $imageRow['image_url'];
+            }
 
-            $stmt = db()->prepare('UPDATE products SET product_name=?, category_id=?, product_type_id=?, style_id=?, gender=?, original_price=?, sale_price=?, material=?, size=?, information=?, short_description=?, quantity=?, color=?, import_link=?, thumbnail=?, is_active=? WHERE id=?');
+            $galleryImages = array_values(array_merge(array_values($existingImageMap), $uploadedImages));
+
+            $primaryTarget = null;
+
+            if (strpos($primaryImageInput, 'existing:') === 0) {
+                $primaryId = (int)substr($primaryImageInput, 9);
+                $primaryTarget = $existingImageMap[$primaryId] ?? null;
+            } elseif (strpos($primaryImageInput, 'new:') === 0) {
+                $newIndex = (int)substr($primaryImageInput, 4);
+                $primaryTarget = $uploadedImages[$newIndex] ?? null;
+            }
+
+            $galleryImages = $moveImageToFront($galleryImages, $primaryTarget);
+            $thumbnail = $galleryImages[0] ?? null;
+
+            $stmt = db()->prepare('
+                UPDATE products
+                SET product_name = ?, category_id = ?, product_type_id = ?, style_id = ?, gender = ?,
+                    original_price = ?, sale_price = ?, material = ?, size = ?, information = ?,
+                    short_description = ?, quantity = ?, color = ?, import_link = ?, thumbnail = ?, is_active = ?
+                WHERE id = ?
+            ');
+
             $stmt->execute([
                 $data['product_name'],
                 $data['category_id'],
@@ -153,9 +237,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             sync_product_conditions($id, $selectedConditions);
         } else {
             $productCode = generate_unique_product_code();
-            $thumbnail = $uploadedImages[0] ?? null;
 
-            $stmt = db()->prepare('INSERT INTO products (product_name, product_code, category_id, product_type_id, style_id, gender, original_price, sale_price, material, size, information, short_description, quantity, color, import_link, thumbnail, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $galleryImages = $uploadedImages;
+            $primaryTarget = null;
+
+            if (strpos($primaryImageInput, 'new:') === 0) {
+                $newIndex = (int)substr($primaryImageInput, 4);
+                $primaryTarget = $uploadedImages[$newIndex] ?? null;
+            }
+
+            $galleryImages = $moveImageToFront($galleryImages, $primaryTarget);
+            $thumbnail = $galleryImages[0] ?? null;
+
+            $stmt = db()->prepare('
+                INSERT INTO products (
+                    product_name, product_code, category_id, product_type_id, style_id, gender,
+                    original_price, sale_price, material, size, information, short_description,
+                    quantity, color, import_link, thumbnail, is_active
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ');
+
             $stmt->execute([
                 $data['product_name'],
                 $productCode,
@@ -175,9 +277,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $thumbnail,
                 $data['is_active'],
             ]);
+
             $newId = (int)db()->lastInsertId();
 
-            replace_product_gallery($newId, $uploadedImages);
+            replace_product_gallery($newId, $galleryImages);
             sync_product_conditions($newId, $selectedConditions);
         }
 
@@ -199,6 +302,13 @@ $categories = get_categories();
 $styles = get_styles();
 $productTypes = get_product_types();
 $productConditions = get_product_conditions();
+
+$currentPrimaryImage = trim($_POST['primary_image'] ?? '');
+
+if ($currentPrimaryImage === '' && !empty($images)) {
+    $currentPrimaryImage = 'existing:' . (int)$images[0]['id'];
+}
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -218,6 +328,8 @@ require_once __DIR__ . '/../includes/header.php';
     margin-bottom: 24px;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--line-light, #e5e7eb);
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .admin-header h1 {
@@ -234,16 +346,20 @@ require_once __DIR__ . '/../includes/header.php';
     padding: 24px;
 }
 
-/* Lưới Form: Mặc định 1 cột (Mobile), 2 cột (Desktop) */
 .form-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 20px;
 }
 
+.col-full {
+    grid-column: 1 / -1;
+}
+
 @media (min-width: 768px) {
-    .form-grid { grid-template-columns: 1fr 1fr; }
-    .col-full { grid-column: 1 / -1; }
+    .form-grid {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 
 .form-group label {
@@ -260,9 +376,12 @@ require_once __DIR__ . '/../includes/header.php';
     color: #9ca3af;
     margin-top: 6px;
     font-weight: 400;
+    line-height: 1.5;
 }
 
-.required-mark { color: var(--danger-color, #ef4444); }
+.required-mark {
+    color: var(--danger-color, #ef4444);
+}
 
 .form-control {
     width: 100%;
@@ -270,22 +389,29 @@ require_once __DIR__ . '/../includes/header.php';
     border: 1px solid var(--line-strong, #d1d5db);
     border-radius: var(--radius-md, 8px);
     font-size: 14px;
-    color: var(--text-main);
+    color: var(--text-main, #111827);
     background-color: var(--bg-white, #fff);
     font-family: inherit;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    min-height: 42px;
 }
 
-.form-control:focus { border-color: var(--primary-color, #000); }
-.form-control[readonly] { background-color: #f3f4f6; cursor: not-allowed; }
+.form-control:focus {
+    border-color: var(--primary-color, #000);
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+
+.form-control[readonly] {
+    background-color: #f3f4f6;
+    cursor: not-allowed;
+}
 
 textarea.form-control {
     resize: vertical;
     min-height: 80px;
 }
 
-/* Custom Checkbox Tình Trạng */
 .checkbox-list {
     display: flex;
     flex-wrap: wrap;
@@ -310,37 +436,70 @@ textarea.form-control {
 .checkbox-chip input[type="checkbox"] {
     width: 16px;
     height: 16px;
-    accent-color: var(--primary-color);
+    accent-color: var(--primary-color, #000);
     cursor: pointer;
+    flex-shrink: 0;
 }
 
-.checkbox-chip:hover { border-color: var(--line-strong); }
+.checkbox-chip:hover {
+    border-color: var(--line-strong, #d1d5db);
+}
 
-/* Checkbox hiển thị website */
 .checkbox-inline {
     display: flex;
     align-items: center;
     gap: 10px;
     font-size: 14px;
     font-weight: 600;
-    color: var(--text-main);
+    color: var(--text-main, #111827);
     cursor: pointer;
     padding: 10px 15px;
     background: #f8fafc;
-    border: 1px solid var(--line-light);
+    border: 1px solid var(--line-light, #e5e7eb);
     border-radius: 8px;
 }
+
 .checkbox-inline input[type="checkbox"] {
     width: 18px;
     height: 18px;
-    accent-color: var(--primary-color);
+    accent-color: var(--primary-color, #000);
+    flex-shrink: 0;
 }
 
-/* Thư viện ảnh */
+.upload-box {
+    background: #f8fafc;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px dashed var(--line-strong, #d1d5db);
+}
+
+.upload-box label.upload-title {
+    color: var(--primary-color, #000);
+    font-size: 15px;
+    margin-bottom: 8px;
+}
+
+.upload-box input[type="file"] {
+    margin-top: 10px;
+    width: 100%;
+}
+
+.upload-status {
+    margin-top: 8px;
+    color: #2563eb;
+    min-height: 20px;
+}
+
 .existing-gallery {
     margin-top: 10px;
     padding-top: 20px;
-    border-top: 1px dashed var(--line-strong);
+    border-top: 1px dashed var(--line-strong, #d1d5db);
+}
+
+.preview-gallery {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
 }
 
 .existing-gallery h3 {
@@ -355,13 +514,12 @@ textarea.form-control {
 }
 
 .existing-gallery-item {
-    width: 120px;
+    width: 140px;
     position: relative;
-    border: 1px solid var(--line-light);
+    border: 1px solid var(--line-light, #e5e7eb);
     border-radius: 8px;
     overflow: hidden;
     background: #fff;
-    cursor: pointer;
 }
 
 .existing-gallery-item img {
@@ -375,37 +533,89 @@ textarea.form-control {
     padding: 8px;
     text-align: center;
     background: #f8fafc;
-    border-top: 1px solid var(--line-light);
+    border-top: 1px solid var(--line-light, #e5e7eb);
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     gap: 6px;
 }
 
 .thumb-badge {
-    background: var(--primary-color);
+    background: var(--primary-color, #000);
     color: #fff;
     font-size: 10px;
     padding: 2px 6px;
     border-radius: 4px;
     font-weight: 600;
+    align-self: center;
 }
 
-/* Alerts & Buttons */
-.alert { padding: 14px 16px; border-radius: 8px; margin-bottom: 24px; font-size: 14px; font-weight: 500; }
-.alert.error { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+.mini-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-main, #111827);
+    line-height: 1.4;
+    text-align: left;
+}
+
+.mini-option input[type="radio"],
+.mini-option input[type="checkbox"] {
+    accent-color: var(--primary-color, #000);
+    flex-shrink: 0;
+}
+
+.mini-option.danger {
+    color: #b91c1c;
+}
+
+.preview-file-name {
+    font-size: 11px;
+    color: #6b7280;
+    line-height: 1.4;
+    word-break: break-word;
+    text-align: left;
+}
+
+.existing-gallery-item.is-removing {
+    opacity: 0.55;
+    border-color: #fca5a5;
+    background: #fff5f5;
+}
+
+.alert {
+    padding: 14px 16px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.6;
+}
+
+.alert.error {
+    background-color: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+}
 
 .form-actions {
     display: flex;
     gap: 12px;
     margin-top: 30px;
     padding-top: 20px;
-    border-top: 1px solid var(--line-light);
+    border-top: 1px solid var(--line-light, #e5e7eb);
 }
 
 @media (max-width: 768px) {
-    .form-actions { flex-direction: column; }
-    .form-actions .btn { width: 100%; }
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+    }
 }
 </style>
 
@@ -417,17 +627,29 @@ textarea.form-control {
 
     <?php if (!empty($errors)): ?>
         <div class="alert error">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
             <?= e(implode(' ', $errors)) ?>
         </div>
     <?php endif; ?>
 
-    <form method="post" enctype="multipart/form-data" class="card-box">
+    <form method="post" enctype="multipart/form-data" class="card-box" id="productForm">
         <div class="form-grid">
-            
+
             <div class="form-group col-full">
-                <label>Tên sản phẩm <span class="required-mark">*</span></label>
-                <input type="text" name="product_name" class="form-control" value="<?= e($product['product_name']) ?>" required placeholder="VD: Áo Thun Nam Có Cổ">
+                <label for="product_name">Tên sản phẩm <span class="required-mark">*</span></label>
+                <input
+                    id="product_name"
+                    type="text"
+                    name="product_name"
+                    class="form-control"
+                    value="<?= e($product['product_name']) ?>"
+                    required
+                    placeholder="VD: Áo Thun Nam Có Cổ"
+                >
             </div>
 
             <div class="form-group">
@@ -437,17 +659,22 @@ textarea.form-control {
             </div>
 
             <div class="form-group">
-                <label>Danh mục <span class="required-mark">*</span></label>
+                <label for="categorySelect">Danh mục <span class="required-mark">*</span></label>
                 <select name="category_id" id="categorySelect" class="form-control" required>
                     <option value="">-- Chọn danh mục --</option>
                     <?php foreach ($categories as $cat): ?>
-                        <option value="<?= (int)$cat['id'] ?>" <?= (int)$product['category_id'] === (int)$cat['id'] ? 'selected' : '' ?>><?= e($cat['name']) ?></option>
+                        <option
+                            value="<?= (int)$cat['id'] ?>"
+                            <?= (int)$product['category_id'] === (int)$cat['id'] ? 'selected' : '' ?>
+                        >
+                            <?= e($cat['name']) ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
             </div>
 
             <div class="form-group">
-                <label>Loại sản phẩm <span class="required-mark">*</span></label>
+                <label for="productTypeSelect">Loại sản phẩm <span class="required-mark">*</span></label>
                 <select name="product_type_id" id="productTypeSelect" class="form-control" required>
                     <option value="">-- Chọn loại sản phẩm --</option>
                     <?php foreach ($productTypes as $type): ?>
@@ -464,66 +691,119 @@ textarea.form-control {
             </div>
 
             <div class="form-group">
-                <label>Phong cách</label>
-                <select name="style_id" class="form-control">
+                <label for="style_id">Phong cách</label>
+                <select name="style_id" id="style_id" class="form-control">
                     <option value="">-- Chọn phong cách --</option>
                     <?php foreach ($styles as $style): ?>
-                        <option value="<?= (int)$style['id'] ?>" <?= (int)$product['style_id'] === (int)$style['id'] ? 'selected' : '' ?>><?= e($style['name']) ?></option>
+                        <option
+                            value="<?= (int)$style['id'] ?>"
+                            <?= (int)$product['style_id'] === (int)$style['id'] ? 'selected' : '' ?>
+                        >
+                            <?= e($style['name']) ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
             </div>
 
             <div class="form-group">
-                <label>Giới tính <span class="required-mark">*</span></label>
-                <select name="gender" class="form-control" required>
+                <label for="gender">Giới tính <span class="required-mark">*</span></label>
+                <select name="gender" id="gender" class="form-control" required>
                     <?php foreach (product_gender_options() as $gender): ?>
-                        <option value="<?= e($gender) ?>" <?= $product['gender'] === $gender ? 'selected' : '' ?>><?= e($gender) ?></option>
+                        <option value="<?= e($gender) ?>" <?= $product['gender'] === $gender ? 'selected' : '' ?>>
+                            <?= e($gender) ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
             </div>
-<br>
+
             <div class="form-group">
-                <label>Giá gốc (VNĐ) (đây là giá ghạch) <span class="required-mark">*</span></label>
-                <input type="text" name="original_price" class="form-control money-input" inputmode="numeric" autocomplete="off" value="<?= e($formatPriceInput($product['original_price'])) ?>" required>
+                <label for="original_price">Giá gốc (VNĐ) (đây là giá gạch) <span class="required-mark">*</span></label>
+                <input
+                    id="original_price"
+                    type="text"
+                    name="original_price"
+                    class="form-control money-input"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    value="<?= e($formatPriceInput($product['original_price'])) ?>"
+                    required
+                >
             </div>
 
             <div class="form-group">
-                <label>Giá khuyến mãi (VNĐ) (đây là giá bán)</label>
-                <input type="text" name="sale_price" class="form-control money-input" inputmode="numeric" autocomplete="off" value="<?= e($formatPriceInput($product['sale_price'])) ?>">
-                <span class="hint">Để trống nếu không Sale.</span>
+                <label for="sale_price">Giá khuyến mãi (VNĐ) (đây là giá bán)</label>
+                <input
+                    id="sale_price"
+                    type="text"
+                    name="sale_price"
+                    class="form-control money-input"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    value="<?= e($formatPriceInput($product['sale_price'])) ?>"
+                >
+                <span class="hint">Để trống nếu không sale.</span>
             </div>
 
             <div class="form-group">
-                <label>Chất liệu</label>
-                <input type="text" name="material" class="form-control" value="<?= e($product['material']) ?>" placeholder="VD: Cotton, Kaki...">
+                <label for="material">Chất liệu</label>
+                <input
+                    id="material"
+                    type="text"
+                    name="material"
+                    class="form-control"
+                    value="<?= e($product['material']) ?>"
+                    placeholder="VD: Cotton, Kaki..."
+                >
             </div>
 
             <div class="form-group">
-                <label>Kích thước (Size)</label>
-                <input type="text" name="size" class="form-control" placeholder="VD: S, M, L, XL" value="<?= e($product['size']) ?>">
+                <label for="size">Kích thước (Size)</label>
+                <input
+                    id="size"
+                    type="text"
+                    name="size"
+                    class="form-control"
+                    placeholder="VD: S, M, L, XL"
+                    value="<?= e($product['size']) ?>"
+                >
             </div>
 
             <div class="form-group">
-                <label>Màu sắc</label>
-                <input type="text" name="color" class="form-control" placeholder="VD: Đen, Trắng, Xám" value="<?= e($product['color']) ?>">
+                <label for="color">Màu sắc</label>
+                <input
+                    id="color"
+                    type="text"
+                    name="color"
+                    class="form-control"
+                    placeholder="VD: Đen, Trắng, Xám"
+                    value="<?= e($product['color']) ?>"
+                >
             </div>
 
             <div class="form-group">
-                <label>Số lượng trong kho</label>
-                <input type="number" name="quantity" class="form-control" min="0" value="<?= e((string)$product['quantity']) ?>">
+                <label for="quantity">Số lượng trong kho</label>
+                <input
+                    id="quantity"
+                    type="number"
+                    name="quantity"
+                    class="form-control"
+                    min="0"
+                    value="<?= e((string)$product['quantity']) ?>"
+                >
             </div>
 
             <div class="form-group col-full">
-    <label>Link Zalo nhập hàng / Nguồn / SĐT</label>
-    <input 
-        type="text" 
-        name="import_link" 
-        class="form-control" 
-        value="<?= e($product['import_link']) ?>" 
-        placeholder="Nhập link (https://...) hoặc Số điện thoại nguồn hàng"
-    >
-    <span class="hint">Bạn có thể điền link Zalo, link nguồn hàng hoặc số điện thoại đều được.</span>
-</div>
+                <label for="import_link">Link Zalo nhập hàng / Nguồn / SĐT</label>
+                <input
+                    id="import_link"
+                    type="text"
+                    name="import_link"
+                    class="form-control"
+                    value="<?= e($product['import_link']) ?>"
+                    placeholder="Nhập link (https://...) hoặc số điện thoại nguồn hàng"
+                >
+                <span class="hint">Bạn có thể điền link Zalo, link nguồn hàng hoặc số điện thoại đều được.</span>
+            </div>
 
             <div class="form-group col-full">
                 <label>Tình trạng sản phẩm</label>
@@ -533,7 +813,12 @@ textarea.form-control {
                     <?php else: ?>
                         <?php foreach ($productConditions as $condition): ?>
                             <label class="checkbox-chip">
-                                <input type="checkbox" name="condition_ids[]" value="<?= (int)$condition['id'] ?>" <?= in_array((int)$condition['id'], $selectedConditions, true) ? 'checked' : '' ?>>
+                                <input
+                                    type="checkbox"
+                                    name="condition_ids[]"
+                                    value="<?= (int)$condition['id'] ?>"
+                                    <?= in_array((int)$condition['id'], $selectedConditions, true) ? 'checked' : '' ?>
+                                >
                                 <span><?= e($condition['name']) ?></span>
                             </label>
                         <?php endforeach; ?>
@@ -542,38 +827,65 @@ textarea.form-control {
             </div>
 
             <div class="form-group col-full">
-                <label>Mô tả ngắn</label>
-                <textarea name="short_description" class="form-control" rows="3" placeholder="Đoạn văn ngắn gọn giới thiệu điểm nổi bật của SP..."><?= e($product['short_description']) ?></textarea>
+                <label for="short_description">Mô tả ngắn</label>
+                <textarea
+                    id="short_description"
+                    name="short_description"
+                    class="form-control"
+                    rows="3"
+                    placeholder="Đoạn văn ngắn gọn giới thiệu điểm nổi bật của SP..."
+                ><?= e($product['short_description']) ?></textarea>
             </div>
 
             <div class="form-group col-full">
-                <label>Thông tin chi tiết</label>
-                <textarea name="information" class="form-control" rows="6" placeholder="Mô tả chi tiết về sản phẩm, hướng dẫn bảo quản, nguồn gốc..."><?= e($product['information']) ?></textarea>
+                <label for="information">Thông tin chi tiết</label>
+                <textarea
+                    id="information"
+                    name="information"
+                    class="form-control"
+                    rows="6"
+                    placeholder="Mô tả chi tiết về sản phẩm, hướng dẫn bảo quản, nguồn gốc..."
+                ><?= e($product['information']) ?></textarea>
             </div>
 
             <div class="form-group col-full">
                 <label>Trạng thái hiển thị</label>
                 <label class="checkbox-inline">
-                    <input type="checkbox" name="is_active" value="1" <?= !empty($product['is_active']) ? 'checked' : '' ?>>
-                    Hiển thị sản phẩm này trên gian hàng Website
+                    <input
+                        type="checkbox"
+                        name="is_active"
+                        value="1"
+                        <?= !empty($product['is_active']) ? 'checked' : '' ?>
+                    >
+                    Hiển thị sản phẩm này trên gian hàng website
                 </label>
             </div>
 
-            <div class="form-group col-full" style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px dashed var(--line-strong);">
-                <label style="color: var(--primary-color); font-size: 15px;">Thư viện ảnh sản phẩm <span class="required-mark">*</span></label>
-              <input
-    id="galleryFiles"
-    type="file"
-    name="gallery_files[]"
-    accept="image/png,image/jpeg,image/webp"
-    multiple
-    <?= $isEdit ? '' : 'required' ?>
-    style="margin-top: 10px; width: 100%;"
->
-<div id="uploadHint" class="hint">
-    Bạn có thể chọn <strong>nhiều ảnh</strong> cùng lúc. Hệ thống sẽ tự nén ảnh trước khi tải lên để nhanh hơn.
-</div>
-<div id="uploadStatus" class="hint" style="margin-top:8px;color:#2563eb;"></div>
+            <div class="form-group col-full upload-box">
+                <label class="upload-title" for="galleryFiles">
+                    Thư viện ảnh sản phẩm <span class="required-mark">*</span>
+                </label>
+
+                <input
+                    id="galleryFiles"
+                    type="file"
+                    name="gallery_files[]"
+                    accept="image/png,image/jpeg,image/webp"
+                    multiple
+                    <?= $isEdit ? '' : 'required' ?>
+                >
+
+                <div id="uploadHint" class="hint">
+                    Bạn có thể chọn <strong>nhiều ảnh</strong> cùng lúc. Hệ thống sẽ tự nén ảnh ngay sau khi chọn để lúc bấm Lưu nhanh hơn.
+                    Nên chọn tối đa <strong>8 ảnh/lần</strong>.
+                </div>
+
+                <div id="uploadStatus" class="hint upload-status"></div>
+            </div>
+
+            <div class="col-full existing-gallery preview-gallery" id="newPreviewBlock" style="display:none;">
+                <h3>Ảnh mới vừa chọn</h3>
+                <div class="existing-gallery-grid" id="newPreviewGrid"></div>
             </div>
 
             <?php if (!empty($images)): ?>
@@ -581,16 +893,39 @@ textarea.form-control {
                     <h3>Quản lý ảnh hiện tại</h3>
                     <div class="existing-gallery-grid">
                         <?php foreach ($images as $index => $image): ?>
-                            <label class="existing-gallery-item">
+                            <?php $existingId = (int)$image['id']; ?>
+                            <div class="existing-gallery-item" data-existing-id="<?= $existingId ?>">
                                 <img src="<?= e(resolve_media_url($image['image_url'])) ?>" alt="Ảnh SP">
+
                                 <div class="existing-gallery-meta">
                                     <?php if ($index === 0): ?>
-                                        <span class="thumb-badge">Ảnh chính</span>
+                                        <span class="thumb-badge">Đang là ảnh chính</span>
                                     <?php endif; ?>
-                                    <span class="hint" style="margin-top: 2px;">Tích để xoá</span>
-                                    <input type="checkbox" name="remove_image_ids[]" value="<?= (int)$image['id'] ?>">
+
+                                    <label class="mini-option">
+                                        <input
+                                            type="radio"
+                                            name="primary_image"
+                                            value="existing:<?= $existingId ?>"
+                                            class="primary-radio"
+                                            data-existing-id="<?= $existingId ?>"
+                                            <?= $currentPrimaryImage === 'existing:' . $existingId ? 'checked' : '' ?>
+                                        >
+                                        <span>Chọn làm ảnh chính</span>
+                                    </label>
+
+                                    <label class="mini-option danger">
+                                        <input
+                                            type="checkbox"
+                                            name="remove_image_ids[]"
+                                            value="<?= $existingId ?>"
+                                            class="remove-image-checkbox"
+                                            data-existing-id="<?= $existingId ?>"
+                                        >
+                                        <span>Xóa ảnh</span>
+                                    </label>
                                 </div>
-                            </label>
+                            </div>
                         <?php endforeach; ?>
                     </div>
                 </div>
@@ -599,10 +934,15 @@ textarea.form-control {
         </div>
 
         <div class="form-actions">
-            <button class="btn btn-big" type="submit">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            <button class="btn btn-big" type="submit" id="submitBtn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
                 Lưu thông tin sản phẩm
             </button>
+
             <a class="btn btn-light btn-big" href="<?= BASE_URL ?>/admin/products.php">Hủy thao tác</a>
         </div>
     </form>
@@ -614,11 +954,22 @@ document.addEventListener('DOMContentLoaded', function () {
     const typeSelect = document.getElementById('productTypeSelect');
     const galleryInput = document.getElementById('galleryFiles');
     const uploadStatus = document.getElementById('uploadStatus');
-    const form = document.querySelector('form[enctype="multipart/form-data"]');
-    const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+    const form = document.getElementById('productForm') || document.querySelector('form[enctype="multipart/form-data"]');
+    const submitBtn = document.getElementById('submitBtn') || (form ? form.querySelector('button[type="submit"]') : null);
+    const newPreviewBlock = document.getElementById('newPreviewBlock');
+    const newPreviewGrid = document.getElementById('newPreviewGrid');
 
-    let isSubmittingCompressed = false;
+    let compressedFilesCache = [];
+    let isCompressing = false;
     let originalSubmitHtml = submitBtn ? submitBtn.innerHTML : '';
+    let lastSelectionKey = '';
+    let previewObjectUrls = [];
+
+    function setUploadStatus(message, type = '') {
+        if (!uploadStatus) return;
+        uploadStatus.textContent = message || '';
+        uploadStatus.style.color = type === 'error' ? '#b91c1c' : (type === 'success' ? '#047857' : '#2563eb');
+    }
 
     function syncTypeOptions() {
         if (!categorySelect || !typeSelect) return;
@@ -634,11 +985,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const optionCategoryId = option.dataset.categoryId || '';
             const shouldShow = !!categoryId && optionCategoryId === categoryId;
+
             option.hidden = !shouldShow;
 
             if (!shouldShow && option.selected) {
                 option.selected = false;
             }
+
             if (shouldShow && option.selected) {
                 hasVisibleSelected = true;
             }
@@ -660,11 +1013,150 @@ document.addEventListener('DOMContentLoaded', function () {
         const units = ['B', 'KB', 'MB', 'GB'];
         let i = 0;
         let size = bytes;
+
         while (size >= 1024 && i < units.length - 1) {
             size /= 1024;
             i++;
         }
+
         return `${size.toFixed(size >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+
+    function getFilesKey(files) {
+        return files.map(file => `${file.name}__${file.size}__${file.lastModified}`).join('||');
+    }
+
+    function getSelectedPrimaryValue() {
+        const checked = document.querySelector('input[name="primary_image"]:checked:not(:disabled)');
+        return checked ? checked.value : '';
+    }
+
+    function ensureAnyPrimarySelected() {
+        const checked = document.querySelector('input[name="primary_image"]:checked:not(:disabled)');
+        if (checked) return;
+
+        const firstAvailable = document.querySelector('input[name="primary_image"]:not(:disabled)');
+        if (firstAvailable) {
+            firstAvailable.checked = true;
+        }
+    }
+
+    function syncExistingImageControls() {
+        const removeCheckboxes = document.querySelectorAll('.remove-image-checkbox');
+
+        removeCheckboxes.forEach((checkbox) => {
+            const id = checkbox.getAttribute('data-existing-id');
+            const radio = document.querySelector('.primary-radio[data-existing-id="' + id + '"]');
+            const card = checkbox.closest('.existing-gallery-item');
+
+            if (radio) {
+                radio.disabled = checkbox.checked;
+
+                if (checkbox.checked && radio.checked) {
+                    radio.checked = false;
+                }
+            }
+
+            if (card) {
+                card.classList.toggle('is-removing', checkbox.checked);
+            }
+        });
+
+        ensureAnyPrimarySelected();
+    }
+
+    function clearPreviewUrls() {
+        previewObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+        previewObjectUrls = [];
+    }
+
+    function clearNewPreview() {
+        clearPreviewUrls();
+
+        if (newPreviewGrid) {
+            newPreviewGrid.innerHTML = '';
+        }
+
+        if (newPreviewBlock) {
+            newPreviewBlock.style.display = 'none';
+        }
+    }
+
+    function renderNewPreview(files) {
+        if (!newPreviewBlock || !newPreviewGrid) return;
+
+        clearPreviewUrls();
+        newPreviewGrid.innerHTML = '';
+
+        const fileList = Array.from(files || []);
+        if (!fileList.length) {
+            newPreviewBlock.style.display = 'none';
+            ensureAnyPrimarySelected();
+            return;
+        }
+
+        newPreviewBlock.style.display = 'block';
+
+        const selectedPrimary = getSelectedPrimaryValue();
+        let hasChecked = !!document.querySelector('input[name="primary_image"]:checked:not(:disabled)');
+
+        fileList.forEach((file, index) => {
+            const value = `new:${index}`;
+            const objectUrl = URL.createObjectURL(file);
+            previewObjectUrls.push(objectUrl);
+
+            const item = document.createElement('div');
+            item.className = 'existing-gallery-item';
+
+            const img = document.createElement('img');
+            img.src = objectUrl;
+            img.alt = file.name;
+
+            const meta = document.createElement('div');
+            meta.className = 'existing-gallery-meta';
+
+            const name = document.createElement('div');
+            name.className = 'preview-file-name';
+            name.textContent = `${file.name} • ${formatBytes(file.size || 0)}`;
+
+            const primaryLabel = document.createElement('label');
+            primaryLabel.className = 'mini-option';
+
+            const primaryRadio = document.createElement('input');
+            primaryRadio.type = 'radio';
+            primaryRadio.name = 'primary_image';
+            primaryRadio.value = value;
+            primaryRadio.className = 'primary-radio';
+
+            let shouldCheck = false;
+
+            if (selectedPrimary) {
+                shouldCheck = selectedPrimary === value;
+            } else if (!hasChecked && index === 0) {
+                shouldCheck = true;
+            }
+
+            if (shouldCheck) {
+                primaryRadio.checked = true;
+                hasChecked = true;
+            }
+
+            const primaryText = document.createElement('span');
+            primaryText.textContent = 'Chọn làm ảnh chính';
+
+            primaryLabel.appendChild(primaryRadio);
+            primaryLabel.appendChild(primaryText);
+
+            meta.appendChild(name);
+            meta.appendChild(primaryLabel);
+
+            item.appendChild(img);
+            item.appendChild(meta);
+
+            newPreviewGrid.appendChild(item);
+        });
+
+        ensureAnyPrimarySelected();
     }
 
     function loadImageFromFile(file) {
@@ -688,12 +1180,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function compressImage(file, options = {}) {
         const {
-            maxWidth = 1600,
-            quality = 0.82,
-            outputType = 'image/webp'
+            maxWidth = 1280,
+            quality = 0.78
         } = options;
 
-        if (!file.type.startsWith('image/')) {
+        if (!file || !file.type || !file.type.startsWith('image/')) {
+            return file;
+        }
+
+        if ((file.size || 0) < 250 * 1024) {
             return file;
         }
 
@@ -730,7 +1225,7 @@ document.addEventListener('DOMContentLoaded', function () {
         canvas.width = targetWidth;
         canvas.height = targetHeight;
 
-        const ctx = canvas.getContext('2d', { alpha: true });
+        const ctx = canvas.getContext('2d', { alpha: false });
         if (!ctx) {
             if (drawSource && typeof drawSource.close === 'function') {
                 drawSource.close();
@@ -744,30 +1239,24 @@ document.addEventListener('DOMContentLoaded', function () {
             drawSource.close();
         }
 
+        const outputType = file.type === 'image/png' ? 'image/webp' : 'image/jpeg';
+
         const blob = await new Promise((resolve) => {
-            canvas.toBlob(
-                (result) => resolve(result || null),
-                outputType,
-                quality
-            );
+            canvas.toBlob((result) => resolve(result || null), outputType, quality);
         });
 
         if (!(blob instanceof Blob)) {
             return file;
         }
 
-        const originalSize = file.size || 0;
-        const compressedSize = blob.size || 0;
-
-        if (compressedSize >= originalSize && originalSize > 0) {
+        if ((blob.size || 0) >= (file.size || 0)) {
             return file;
         }
 
         const ext = outputType === 'image/webp' ? 'webp' : 'jpg';
         const cleanName = file.name.replace(/\.[^.]+$/, '');
-        const newName = `${cleanName}.${ext}`;
 
-        return new File([blob], newName, {
+        return new File([blob], `${cleanName}.${ext}`, {
             type: outputType,
             lastModified: Date.now()
         });
@@ -782,14 +1271,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const file = files[i];
             originalTotal += file.size || 0;
 
-            if (uploadStatus) {
-                uploadStatus.textContent = `Đang nén ảnh ${i + 1}/${files.length}...`;
-            }
+            setUploadStatus(`Đang chuẩn bị ảnh ${i + 1}/${files.length}...`);
 
             const compressed = await compressImage(file, {
-                maxWidth: 1600,
-                quality: 0.82,
-                outputType: 'image/webp'
+                maxWidth: 1280,
+                quality: 0.78
             });
 
             compressedTotal += compressed.size || 0;
@@ -803,19 +1289,68 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
 
-    if (galleryInput) {
-        galleryInput.addEventListener('change', function () {
-            const files = Array.from(this.files || []);
-            if (!files.length) {
-                if (uploadStatus) uploadStatus.textContent = '';
+    async function prepareImagesNow(fileList) {
+        if (!galleryInput) return;
+
+        const files = Array.from(fileList || []);
+        compressedFilesCache = [];
+
+        if (!files.length) {
+            setUploadStatus('');
+            clearNewPreview();
+            return;
+        }
+
+        if (files.length > 8) {
+            galleryInput.value = '';
+            clearNewPreview();
+            setUploadStatus('Chỉ nên chọn tối đa 8 ảnh mỗi lần.', 'error');
+            return;
+        }
+
+        const selectionKey = getFilesKey(files);
+        lastSelectionKey = selectionKey;
+
+        try {
+            isCompressing = true;
+
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = 'Đang chuẩn bị ảnh...';
+            }
+
+            const result = await compressSelectedFiles(files);
+
+            if (selectionKey !== lastSelectionKey) {
                 return;
             }
 
-            const total = files.reduce((sum, file) => sum + (file.size || 0), 0);
-            if (uploadStatus) {
-                uploadStatus.textContent = `Đã chọn ${files.length} ảnh • Tổng dung lượng gốc: ${formatBytes(total)}`;
+            compressedFilesCache = result.files;
+
+            if (window.DataTransfer) {
+                const dt = new DataTransfer();
+                compressedFilesCache.forEach(file => dt.items.add(file));
+                galleryInput.files = dt.files;
             }
-        });
+
+            renderNewPreview(Array.from(galleryInput.files || []));
+            setUploadStatus(
+                `Đã chuẩn bị ${files.length} ảnh: ${formatBytes(result.originalTotal)} → ${formatBytes(result.compressedTotal)}`,
+                'success'
+            );
+        } catch (error) {
+            console.error(error);
+            compressedFilesCache = [];
+            clearNewPreview();
+            setUploadStatus('Không thể chuẩn bị ảnh. Vui lòng chọn lại và thử lại.', 'error');
+        } finally {
+            isCompressing = false;
+
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalSubmitHtml;
+            }
+        }
     }
 
     const moneyInputs = document.querySelectorAll('.money-input');
@@ -832,61 +1367,41 @@ document.addEventListener('DOMContentLoaded', function () {
         syncTypeOptions();
     }
 
+    document.querySelectorAll('.remove-image-checkbox').forEach((checkbox) => {
+        checkbox.addEventListener('change', syncExistingImageControls);
+    });
+
+    syncExistingImageControls();
+
+    if (galleryInput) {
+        galleryInput.addEventListener('change', async function () {
+            await prepareImagesNow(this.files);
+        });
+    }
+
     if (form && galleryInput) {
-        form.addEventListener('submit', async function (e) {
-            if (isSubmittingCompressed) {
+        form.addEventListener('submit', function (e) {
+            if (isCompressing) {
+                e.preventDefault();
+                setUploadStatus('Ảnh vẫn đang được chuẩn bị. Đợi xong rồi bấm Lưu.', 'error');
                 return;
             }
 
             const files = Array.from(galleryInput.files || []);
-            if (!files.length) {
-                return;
+
+            if (files.length && window.DataTransfer && compressedFilesCache.length) {
+                const dt = new DataTransfer();
+                compressedFilesCache.forEach(file => dt.items.add(file));
+                galleryInput.files = dt.files;
             }
 
-            e.preventDefault();
-
-            try {
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = 'Đang nén và tải ảnh...';
-                }
-
-                const result = await compressSelectedFiles(files);
-
-                if (uploadStatus) {
-                    uploadStatus.textContent =
-                        `Đã nén ${files.length} ảnh: ${formatBytes(result.originalTotal)} → ${formatBytes(result.compressedTotal)}`;
-                }
-
-                if (window.DataTransfer) {
-                    const dt = new DataTransfer();
-                    result.files.forEach(file => dt.items.add(file));
-                    galleryInput.files = dt.files;
-                } else {
-                    if (uploadStatus) {
-                        uploadStatus.textContent += ' • Trình duyệt không hỗ trợ gán lại file sau khi nén.';
-                    }
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = originalSubmitHtml;
-                    }
-                    return;
-                }
-
-                isSubmittingCompressed = true;
-                form.submit();
-            } catch (error) {
-                console.error(error);
-                if (uploadStatus) {
-                    uploadStatus.textContent = 'Không thể nén ảnh trước khi tải lên. Vui lòng thử lại.';
-                }
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = originalSubmitHtml;
-                }
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = 'Đang lưu sản phẩm...';
             }
         });
     }
 });
 </script>
+
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

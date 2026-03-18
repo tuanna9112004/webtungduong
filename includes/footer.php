@@ -122,7 +122,7 @@
                 </div>
             </div>
 
-            <div class="footer-col">
+            <!-- <div class="footer-col">
                 <h4>Về chúng tôi</h4>
                 <ul>
                     <li><a href="<?= BASE_URL ?>/index.php">Trang chủ</a></li>
@@ -130,9 +130,9 @@
                     <li><a href="#" id="footerIntroBtn">Giới thiệu shop</a></li>
                     <li><a href="<?= e(ZALO_LINK ?? '#') ?>" target="_blank">Liên hệ chốt đơn</a></li>
                 </ul>
-            </div>
+            </div> -->
 
-            <div class="footer-col">
+            <!-- <div class="footer-col">
                 <h4>Chính sách</h4>
                 <ul>
                     <li><a href="#">Hướng dẫn mua hàng</a></li>
@@ -140,14 +140,14 @@
                     <li><a href="#">Chính sách vận chuyển</a></li>
                     <li><a href="#">Bảo mật thông tin</a></li>
                 </ul>
-            </div>
+            </div> -->
 
             <div class="footer-col">
                 <h4>Thông tin liên hệ</h4>
                 <ul style="color: var(--text-muted); font-size: 14px;">
                     <li style="margin-bottom: 12px;"><strong>Hotline/Zalo:</strong> 09xx.xxx.xxx (Cập nhật sau)</li>
                     <li style="margin-bottom: 12px;"><strong>Giờ làm việc:</strong> 08:00 - 22:00 (T2 - CN)</li>
-                    <li><strong>Địa chỉ:</strong> (Thêm địa chỉ shop của bạn vào đây)</li>
+                    <li><strong>Địa chỉ:</strong> sớm cập nhập</li>
                 </ul>
             </div>
 
