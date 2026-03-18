@@ -310,47 +310,253 @@ function normalize_uploaded_files(?array $files): array {
 
     return $normalized;
 }
-function can_process_image_with_gd(string $mime): bool
-{
-    if (!function_exists('imagecreatetruecolor')) {
-        return false;
-    }
 
-    return match ($mime) {
-        'image/jpeg' => function_exists('imagecreatefromjpeg'),
-        'image/png'  => function_exists('imagecreatefrompng'),
-        'image/webp' => function_exists('imagecreatefromwebp'),
-        default      => false,
-    };
-}
-
-function save_original_uploaded_file(array $file, string $mime): ?string
+function uploaded_image_mime_map(): array
 {
-    $extMap = [
+    return [
         'image/jpeg' => 'jpg',
         'image/png'  => 'png',
         'image/webp' => 'webp',
     ];
+}
+
+function normalize_relative_upload_path(string $path): string
+{
+    $path = str_replace('\\', '/', trim($path));
+    $path = preg_replace('#/+#', '/', $path) ?: '';
+    return ltrim($path, '/');
+}
+
+function is_safe_relative_upload_path(string $path): bool
+{
+    $path = normalize_relative_upload_path($path);
+
+    if ($path === '' || str_contains($path, '..')) {
+        return false;
+    }
+
+    if (!str_starts_with($path, 'uploads/')) {
+        return false;
+    }
+
+    return (bool)preg_match('#^[a-zA-Z0-9/_\.-]+$#', $path);
+}
+
+function relative_upload_path_to_absolute(string $path): ?string
+{
+    $path = normalize_relative_upload_path($path);
+    if (!is_safe_relative_upload_path($path)) {
+        return null;
+    }
+
+    $projectRoot = realpath(__DIR__ . '/..');
+    if ($projectRoot === false) {
+        return null;
+    }
+
+    return $projectRoot . '/' . $path;
+}
+
+function ensure_relative_upload_directory(string $relativeDir = 'uploads'): ?string
+{
+    $relativeDir = normalize_relative_upload_path($relativeDir);
+
+    if ($relativeDir === '' || str_contains($relativeDir, '..')) {
+        return null;
+    }
+
+    $projectRoot = realpath(__DIR__ . '/..');
+    if ($projectRoot === false) {
+        return null;
+    }
+
+    $targetDir = $projectRoot . '/' . $relativeDir;
+
+    if (!is_dir($targetDir) && !mkdir($targetDir, 0777, true) && !is_dir($targetDir)) {
+        return null;
+    }
+
+    return $targetDir;
+}
+
+function detect_uploaded_image_mime(string $tmpPath): ?string
+{
+    if (!is_file($tmpPath)) {
+        return null;
+    }
+
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo) {
+            $mime = finfo_file($finfo, $tmpPath) ?: null;
+            finfo_close($finfo);
+
+            if ($mime) {
+                return $mime;
+            }
+        }
+    }
+
+    if (function_exists('mime_content_type')) {
+        $mime = mime_content_type($tmpPath);
+        return $mime ?: null;
+    }
+
+    return null;
+}
+
+function can_process_image_with_gd(string $mime): bool
+{
+    if (!function_exists('imagecreatetruecolor') || !function_exists('getimagesize')) {
+        return false;
+    }
+
+    return match ($mime) {
+        'image/jpeg' => function_exists('imagecreatefromjpeg') && function_exists('imagejpeg'),
+        'image/png'  => function_exists('imagecreatefrompng') && (function_exists('imagewebp') || function_exists('imagejpeg')),
+        'image/webp' => function_exists('imagecreatefromwebp') && (function_exists('imagewebp') || function_exists('imagejpeg')),
+        default      => false,
+    };
+}
+
+function create_image_resource_from_upload(string $tmpPath, string $mime)
+{
+    return match ($mime) {
+        'image/jpeg' => imagecreatefromjpeg($tmpPath),
+        'image/png'  => imagecreatefrompng($tmpPath),
+        'image/webp' => imagecreatefromwebp($tmpPath),
+        default      => false,
+    };
+}
+
+function build_upload_filename(string $extension): string
+{
+    return uniqid('img_', true) . '.' . ltrim($extension, '.');
+}
+
+function save_original_uploaded_file(array $file, string $mime, string $destinationRelativeDir = 'uploads'): ?string
+{
+    $extMap = uploaded_image_mime_map();
 
     if (!isset($extMap[$mime])) {
         return null;
     }
 
-    $targetDir = __DIR__ . '/../uploads';
-    if (!is_dir($targetDir)) {
-        mkdir($targetDir, 0777, true);
+    $targetDir = ensure_relative_upload_directory($destinationRelativeDir);
+    if ($targetDir === null) {
+        return null;
     }
 
-    $name = uniqid('img_', true) . '.' . $extMap[$mime];
+    $name = build_upload_filename($extMap[$mime]);
     $target = $targetDir . '/' . $name;
 
     if (!move_uploaded_file($file['tmp_name'], $target)) {
         return null;
     }
 
-    return 'uploads/' . $name;
+    return normalize_relative_upload_path($destinationRelativeDir . '/' . $name);
 }
-function handle_image_upload(?array $file): ?string
+
+function optimize_and_store_uploaded_image(
+    array $file,
+    string $mime,
+    string $destinationRelativeDir = 'uploads',
+    int $maxWidth = 1400,
+    int $jpegQuality = 82,
+    int $webpQuality = 80
+): ?string {
+    $targetDir = ensure_relative_upload_directory($destinationRelativeDir);
+    if ($targetDir === null) {
+        return null;
+    }
+
+    $imageInfo = @getimagesize($file['tmp_name']);
+    if (!$imageInfo || empty($imageInfo[0]) || empty($imageInfo[1])) {
+        return save_original_uploaded_file($file, $mime, $destinationRelativeDir);
+    }
+
+    $srcWidth = (int)$imageInfo[0];
+    $srcHeight = (int)$imageInfo[1];
+
+    if ($srcWidth <= 0 || $srcHeight <= 0) {
+        return save_original_uploaded_file($file, $mime, $destinationRelativeDir);
+    }
+
+    $source = @create_image_resource_from_upload($file['tmp_name'], $mime);
+    if (!$source) {
+        return save_original_uploaded_file($file, $mime, $destinationRelativeDir);
+    }
+
+    $targetWidth = $srcWidth;
+    $targetHeight = $srcHeight;
+
+    if ($srcWidth > $maxWidth) {
+        $targetWidth = $maxWidth;
+        $targetHeight = max(1, (int)round(($srcHeight / $srcWidth) * $targetWidth));
+    }
+
+    $destination = imagecreatetruecolor($targetWidth, $targetHeight);
+    if (!$destination) {
+        imagedestroy($source);
+        return save_original_uploaded_file($file, $mime, $destinationRelativeDir);
+    }
+
+    $useWebp = function_exists('imagewebp');
+    $outputMime = $useWebp ? 'image/webp' : 'image/jpeg';
+    $outputExt = $useWebp ? 'webp' : 'jpg';
+
+    if ($outputMime === 'image/webp') {
+        imagealphablending($destination, false);
+        imagesavealpha($destination, true);
+        $transparent = imagecolorallocatealpha($destination, 0, 0, 0, 127);
+        imagefilledrectangle($destination, 0, 0, $targetWidth, $targetHeight, $transparent);
+    } else {
+        $white = imagecolorallocate($destination, 255, 255, 255);
+        imagefilledrectangle($destination, 0, 0, $targetWidth, $targetHeight, $white);
+    }
+
+    imagecopyresampled(
+        $destination,
+        $source,
+        0,
+        0,
+        0,
+        0,
+        $targetWidth,
+        $targetHeight,
+        $srcWidth,
+        $srcHeight
+    );
+
+    $name = build_upload_filename($outputExt);
+    $absolutePath = $targetDir . '/' . $name;
+
+    $saved = false;
+    if ($outputMime === 'image/webp') {
+        $saved = imagewebp($destination, $absolutePath, $webpQuality);
+    } else {
+        $saved = imagejpeg($destination, $absolutePath, $jpegQuality);
+    }
+
+    imagedestroy($destination);
+    imagedestroy($source);
+
+    if (!$saved) {
+        return save_original_uploaded_file($file, $mime, $destinationRelativeDir);
+    }
+
+    $optimizedBytes = @filesize($absolutePath) ?: 0;
+    $originalBytes = (int)($file['size'] ?? 0);
+
+    if ($optimizedBytes <= 0 || ($originalBytes > 0 && $optimizedBytes >= $originalBytes)) {
+        @unlink($absolutePath);
+        return save_original_uploaded_file($file, $mime, $destinationRelativeDir);
+    }
+
+    return normalize_relative_upload_path($destinationRelativeDir . '/' . $name);
+}
+
+function handle_image_upload(?array $file, array $options = []): ?string
 {
     if (
         !$file ||
@@ -361,44 +567,115 @@ function handle_image_upload(?array $file): ?string
         return null;
     }
 
-    if (($file['size'] ?? 0) > 8 * 1024 * 1024) {
+    $maxFileSize = (int)($options['max_file_size'] ?? (12 * 1024 * 1024));
+    if (($file['size'] ?? 0) > $maxFileSize) {
         return null;
     }
 
-    $allowed = [
-        'image/jpeg' => 'jpg',
-        'image/png'  => 'png',
-        'image/webp' => 'webp',
-    ];
+    $mime = detect_uploaded_image_mime($file['tmp_name']);
+    $allowed = uploaded_image_mime_map();
 
-    $mime = mime_content_type($file['tmp_name']);
-    if (!isset($allowed[$mime])) {
+    if (!$mime || !isset($allowed[$mime])) {
         return null;
     }
 
-    $targetDir = __DIR__ . '/../uploads';
-    if (!is_dir($targetDir)) {
-        mkdir($targetDir, 0777, true);
+    $destinationRelativeDir = (string)($options['destination'] ?? 'uploads');
+    $shouldOptimize = (bool)($options['optimize'] ?? true);
+
+    if (
+        !$shouldOptimize ||
+        !can_process_image_with_gd($mime) ||
+        (int)($file['size'] ?? 0) <= (int)($options['optimize_after_bytes'] ?? 300 * 1024)
+    ) {
+        return save_original_uploaded_file($file, $mime, $destinationRelativeDir);
     }
 
-    $name = uniqid('img_', true) . '.' . $allowed[$mime];
-    $target = $targetDir . '/' . $name;
-
-    if (!move_uploaded_file($file['tmp_name'], $target)) {
-        return null;
-    }
-
-    return 'uploads/' . $name;
+    return optimize_and_store_uploaded_image(
+        $file,
+        $mime,
+        $destinationRelativeDir,
+        (int)($options['max_width'] ?? 1400),
+        (int)($options['jpeg_quality'] ?? 82),
+        (int)($options['webp_quality'] ?? 80)
+    );
 }
-function handle_multiple_image_uploads(?array $files): array {
+
+function handle_multiple_image_uploads(?array $files, array $options = []): array {
     $uploaded = [];
+
     foreach (normalize_uploaded_files($files) as $file) {
-        $path = handle_image_upload($file);
+        $path = handle_image_upload($file, $options);
         if ($path) {
             $uploaded[] = $path;
         }
     }
-    return $uploaded;
+
+    return array_values(array_unique($uploaded));
+}
+
+function normalize_posted_uploaded_paths($value): array
+{
+    if (is_string($value)) {
+        $decoded = json_decode($value, true);
+        $value = is_array($decoded) ? $decoded : [];
+    }
+
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $paths = [];
+    foreach ($value as $item) {
+        if (!is_string($item)) {
+            continue;
+        }
+
+        $path = normalize_relative_upload_path($item);
+        if (!is_safe_relative_upload_path($path)) {
+            continue;
+        }
+
+        $absolutePath = relative_upload_path_to_absolute($path);
+        if ($absolutePath === null || !is_file($absolutePath)) {
+            continue;
+        }
+
+        $paths[] = $path;
+    }
+
+    return array_values(array_unique($paths));
+}
+
+function finalize_temp_uploaded_images(array $paths): array
+{
+    $finalPaths = [];
+    $finalDir = ensure_relative_upload_directory('uploads');
+
+    if ($finalDir === null) {
+        return [];
+    }
+
+    foreach (normalize_posted_uploaded_paths($paths) as $path) {
+        if (!str_starts_with($path, 'uploads/tmp/')) {
+            $finalPaths[] = $path;
+            continue;
+        }
+
+        $absoluteSource = relative_upload_path_to_absolute($path);
+        if ($absoluteSource === null || !is_file($absoluteSource)) {
+            continue;
+        }
+
+        $extension = pathinfo($absoluteSource, PATHINFO_EXTENSION) ?: 'jpg';
+        $newName = build_upload_filename($extension);
+        $absoluteTarget = $finalDir . '/' . $newName;
+
+        if (@rename($absoluteSource, $absoluteTarget) || (@copy($absoluteSource, $absoluteTarget) && @unlink($absoluteSource))) {
+            $finalPaths[] = 'uploads/' . $newName;
+        }
+    }
+
+    return array_values(array_unique($finalPaths));
 }
 
 function is_admin_logged_in(): bool {

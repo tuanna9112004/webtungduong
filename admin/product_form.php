@@ -64,6 +64,8 @@ $product = [
 $images = [];
 $selectedConditions = [];
 $errors = [];
+$stagedUploadPaths = [];
+$stagedUploadPathsJson = '[]';
 
 if ($isEdit) {
     $existing = get_product($id);
@@ -148,9 +150,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Giá sale không được lớn hơn giá gốc.';
     }
 
-    $uploadedImages = handle_multiple_image_uploads($_FILES['gallery_files'] ?? null);
+    $stagedUploadPaths = normalize_posted_uploaded_paths($_POST['uploaded_gallery_paths'] ?? []);
+    $directUploadedImages = handle_multiple_image_uploads($_FILES['gallery_files'] ?? null, [
+        'destination' => 'uploads',
+        'optimize' => true,
+        'max_width' => 1400,
+        'jpeg_quality' => 82,
+        'webp_quality' => 80,
+    ]);
 
-    if (!$isEdit && empty($uploadedImages)) {
+    if (!empty($directUploadedImages)) {
+        $stagedUploadPaths = array_values(array_unique(array_merge($stagedUploadPaths, $directUploadedImages)));
+    }
+
+    if (!$isEdit && empty($stagedUploadPaths)) {
         $errors[] = 'Khi thêm mới, bạn phải upload ít nhất 1 ảnh sản phẩm.';
     }
 
@@ -162,12 +175,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $remainingExistingIds = array_values(array_diff($currentExistingIds, $removedImageIds));
 
-        if (empty($remainingExistingIds) && empty($uploadedImages)) {
+        if (empty($remainingExistingIds) && empty($stagedUploadPaths)) {
             $errors[] = 'Bạn phải giữ lại hoặc thêm ít nhất 1 ảnh sản phẩm.';
         }
     }
 
     if (empty($errors)) {
+        $uploadedImages = finalize_temp_uploaded_images($stagedUploadPaths);
+
         if ($isEdit) {
             $existingImages = get_product_images($id);
             $existingImageMap = [];
@@ -302,6 +317,11 @@ $categories = get_categories();
 $styles = get_styles();
 $productTypes = get_product_types();
 $productConditions = get_product_conditions();
+
+$stagedUploadPathsJson = json_encode($stagedUploadPaths, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+if ($stagedUploadPathsJson === false) {
+    $stagedUploadPathsJson = '[]';
+}
 
 $currentPrimaryImage = trim($_POST['primary_image'] ?? '');
 
@@ -875,8 +895,15 @@ textarea.form-control {
                     <?= $isEdit ? '' : 'required' ?>
                 >
 
+                <input
+                    type="hidden"
+                    name="uploaded_gallery_paths"
+                    id="uploadedGalleryPaths"
+                    value='<?= e($stagedUploadPathsJson) ?>'
+                >
+
                 <div id="uploadHint" class="hint">
-                    Bạn có thể chọn <strong>nhiều ảnh</strong> cùng lúc. Hệ thống sẽ tự nén ảnh ngay sau khi chọn để lúc bấm Lưu nhanh hơn.
+                    Bạn có thể chọn <strong>nhiều ảnh</strong> cùng lúc. Hệ thống sẽ nén nhẹ và tải nền ngay sau khi chọn để lúc bấm <strong>Lưu</strong> gần như tức thì.
                     Nên chọn tối đa <strong>8 ảnh/lần</strong>.
                 </div>
 
@@ -953,22 +980,62 @@ document.addEventListener('DOMContentLoaded', function () {
     const categorySelect = document.getElementById('categorySelect');
     const typeSelect = document.getElementById('productTypeSelect');
     const galleryInput = document.getElementById('galleryFiles');
+    const uploadedGalleryPathsInput = document.getElementById('uploadedGalleryPaths');
     const uploadStatus = document.getElementById('uploadStatus');
     const form = document.getElementById('productForm') || document.querySelector('form[enctype="multipart/form-data"]');
     const submitBtn = document.getElementById('submitBtn') || (form ? form.querySelector('button[type="submit"]') : null);
     const newPreviewBlock = document.getElementById('newPreviewBlock');
     const newPreviewGrid = document.getElementById('newPreviewGrid');
+    const tempUploadEndpoint = <?= json_encode(BASE_URL . '/admin/upload_temp_images.php') ?>;
+    const baseUrl = <?= json_encode(BASE_URL) ?>;
 
     let compressedFilesCache = [];
     let isCompressing = false;
+    let isUploading = false;
     let originalSubmitHtml = submitBtn ? submitBtn.innerHTML : '';
     let lastSelectionKey = '';
     let previewObjectUrls = [];
+    let stagedUploads = [];
 
     function setUploadStatus(message, type = '') {
         if (!uploadStatus) return;
         uploadStatus.textContent = message || '';
         uploadStatus.style.color = type === 'error' ? '#b91c1c' : (type === 'success' ? '#047857' : '#2563eb');
+    }
+
+    function setSubmitBusyState() {
+        if (!submitBtn) return;
+
+        if (isCompressing) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Đang chuẩn bị ảnh...';
+            return;
+        }
+
+        if (isUploading) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Đang tải ảnh lên...';
+            return;
+        }
+
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalSubmitHtml;
+    }
+
+    function resolveMediaUrl(value) {
+        if (!value) return '';
+        if (/^(https?:)?\/\//i.test(value) || value.startsWith('/')) {
+            return value;
+        }
+
+        const cleanBase = (baseUrl || '').replace(/\/$/, '');
+        const cleanValue = String(value).replace(/^\/+/, '');
+        return cleanBase ? `${cleanBase}/${cleanValue}` : `/${cleanValue}`;
+    }
+
+    function syncHiddenUploadedPaths() {
+        if (!uploadedGalleryPathsInput) return;
+        uploadedGalleryPathsInput.value = JSON.stringify(stagedUploads.map(item => item.path));
     }
 
     function syncTypeOptions() {
@@ -1082,14 +1149,14 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function renderNewPreview(files) {
+    function renderPreviewItems(items) {
         if (!newPreviewBlock || !newPreviewGrid) return;
 
         clearPreviewUrls();
         newPreviewGrid.innerHTML = '';
 
-        const fileList = Array.from(files || []);
-        if (!fileList.length) {
+        const displayItems = Array.isArray(items) ? items : [];
+        if (!displayItems.length) {
             newPreviewBlock.style.display = 'none';
             ensureAnyPrimarySelected();
             return;
@@ -1100,24 +1167,23 @@ document.addEventListener('DOMContentLoaded', function () {
         const selectedPrimary = getSelectedPrimaryValue();
         let hasChecked = !!document.querySelector('input[name="primary_image"]:checked:not(:disabled)');
 
-        fileList.forEach((file, index) => {
+        displayItems.forEach((item, index) => {
             const value = `new:${index}`;
-            const objectUrl = URL.createObjectURL(file);
-            previewObjectUrls.push(objectUrl);
+            const previewSrc = item.previewSrc || item.url || '';
 
-            const item = document.createElement('div');
-            item.className = 'existing-gallery-item';
+            const card = document.createElement('div');
+            card.className = 'existing-gallery-item';
 
             const img = document.createElement('img');
-            img.src = objectUrl;
-            img.alt = file.name;
+            img.src = previewSrc;
+            img.alt = item.name || `Ảnh ${index + 1}`;
 
             const meta = document.createElement('div');
             meta.className = 'existing-gallery-meta';
 
             const name = document.createElement('div');
             name.className = 'preview-file-name';
-            name.textContent = `${file.name} • ${formatBytes(file.size || 0)}`;
+            name.textContent = item.label || `${item.name || `Ảnh ${index + 1}`} • ${formatBytes(item.size || 0)}`;
 
             const primaryLabel = document.createElement('label');
             primaryLabel.className = 'mini-option';
@@ -1129,7 +1195,6 @@ document.addEventListener('DOMContentLoaded', function () {
             primaryRadio.className = 'primary-radio';
 
             let shouldCheck = false;
-
             if (selectedPrimary) {
                 shouldCheck = selectedPrimary === value;
             } else if (!hasChecked && index === 0) {
@@ -1149,14 +1214,40 @@ document.addEventListener('DOMContentLoaded', function () {
 
             meta.appendChild(name);
             meta.appendChild(primaryLabel);
+            card.appendChild(img);
+            card.appendChild(meta);
 
-            item.appendChild(img);
-            item.appendChild(meta);
-
-            newPreviewGrid.appendChild(item);
+            newPreviewGrid.appendChild(card);
         });
 
         ensureAnyPrimarySelected();
+    }
+
+    function renderNewPreviewFromFiles(files) {
+        const items = Array.from(files || []).map((file) => {
+            const objectUrl = URL.createObjectURL(file);
+            previewObjectUrls.push(objectUrl);
+
+            return {
+                previewSrc: objectUrl,
+                name: file.name,
+                size: file.size || 0,
+                label: `${file.name} • ${formatBytes(file.size || 0)}`
+            };
+        });
+
+        renderPreviewItems(items);
+    }
+
+    function renderNewPreviewFromUploads(items) {
+        const previewItems = Array.from(items || []).map((item) => ({
+            previewSrc: item.url,
+            name: item.name || 'Ảnh mới',
+            size: item.size || 0,
+            label: `${item.name || 'Ảnh mới'}${item.size ? ` • ${formatBytes(item.size)}` : ''}`
+        }));
+
+        renderPreviewItems(previewItems);
     }
 
     function loadImageFromFile(file) {
@@ -1240,7 +1331,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const outputType = file.type === 'image/png' ? 'image/webp' : 'image/jpeg';
-
         const blob = await new Promise((resolve) => {
             canvas.toBlob((result) => resolve(result || null), outputType, quality);
         });
@@ -1263,30 +1353,52 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function compressSelectedFiles(files) {
-        const compressedFiles = [];
-        let originalTotal = 0;
-        let compressedTotal = 0;
+        const originalTotal = files.reduce((sum, file) => sum + (file.size || 0), 0);
+        const compressedFiles = new Array(files.length);
+        const concurrency = Math.min(3, Math.max(1, files.length));
+        let cursor = 0;
 
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            originalTotal += file.size || 0;
-
-            setUploadStatus(`Đang chuẩn bị ảnh ${i + 1}/${files.length}...`);
-
-            const compressed = await compressImage(file, {
-                maxWidth: 1280,
-                quality: 0.78
-            });
-
-            compressedTotal += compressed.size || 0;
-            compressedFiles.push(compressed);
+        async function worker() {
+            while (cursor < files.length) {
+                const index = cursor++;
+                setUploadStatus(`Đang chuẩn bị ảnh ${index + 1}/${files.length}...`);
+                compressedFiles[index] = await compressImage(files[index], {
+                    maxWidth: 1280,
+                    quality: 0.78
+                });
+            }
         }
+
+        await Promise.all(Array.from({ length: concurrency }, worker));
+        const compressedTotal = compressedFiles.reduce((sum, file) => sum + (file.size || 0), 0);
 
         return {
             files: compressedFiles,
             originalTotal,
             compressedTotal
         };
+    }
+
+    async function uploadPreparedFiles(files) {
+        const formData = new FormData();
+        files.forEach((file) => {
+            formData.append('gallery_files[]', file, file.name);
+        });
+
+        const response = await fetch(tempUploadEndpoint, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload || !payload.success) {
+            throw new Error(payload && payload.message ? payload.message : 'Không thể tải ảnh lên máy chủ.');
+        }
+
+        return Array.isArray(payload.files) ? payload.files : [];
     }
 
     async function prepareImagesNow(fileList) {
@@ -1296,6 +1408,8 @@ document.addEventListener('DOMContentLoaded', function () {
         compressedFilesCache = [];
 
         if (!files.length) {
+            stagedUploads = [];
+            syncHiddenUploadedPaths();
             setUploadStatus('');
             clearNewPreview();
             return;
@@ -1303,6 +1417,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (files.length > 8) {
             galleryInput.value = '';
+            stagedUploads = [];
+            syncHiddenUploadedPaths();
             clearNewPreview();
             setUploadStatus('Chỉ nên chọn tối đa 8 ảnh mỗi lần.', 'error');
             return;
@@ -1310,46 +1426,61 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const selectionKey = getFilesKey(files);
         lastSelectionKey = selectionKey;
+        renderNewPreviewFromFiles(files);
 
         try {
             isCompressing = true;
-
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = 'Đang chuẩn bị ảnh...';
-            }
+            setSubmitBusyState();
 
             const result = await compressSelectedFiles(files);
-
             if (selectionKey !== lastSelectionKey) {
                 return;
             }
 
             compressedFilesCache = result.files;
+            isCompressing = false;
+            isUploading = true;
+            setSubmitBusyState();
+            setUploadStatus(`Đang tải ${files.length} ảnh lên máy chủ...`);
+
+            const uploaded = await uploadPreparedFiles(result.files);
+            if (selectionKey !== lastSelectionKey) {
+                return;
+            }
+
+            stagedUploads = uploaded.map((item) => ({
+                path: item.path,
+                url: resolveMediaUrl(item.path),
+                name: item.name || (item.path ? item.path.split('/').pop() : 'Ảnh mới'),
+                size: item.size || 0
+            }));
+
+            syncHiddenUploadedPaths();
+            renderNewPreviewFromUploads(stagedUploads);
+            galleryInput.value = '';
+            compressedFilesCache = [];
+
+            setUploadStatus(
+                `Đã chuẩn bị ${stagedUploads.length} ảnh: ${formatBytes(result.originalTotal)} → ${formatBytes(result.compressedTotal)}. Khi bấm Lưu sẽ nhanh hơn nhiều.`,
+                'success'
+            );
+        } catch (error) {
+            console.error(error);
+            stagedUploads = [];
+            syncHiddenUploadedPaths();
 
             if (window.DataTransfer) {
                 const dt = new DataTransfer();
                 compressedFilesCache.forEach(file => dt.items.add(file));
                 galleryInput.files = dt.files;
+                renderNewPreviewFromFiles(Array.from(galleryInput.files || []));
             }
 
-            renderNewPreview(Array.from(galleryInput.files || []));
-            setUploadStatus(
-                `Đã chuẩn bị ${files.length} ảnh: ${formatBytes(result.originalTotal)} → ${formatBytes(result.compressedTotal)}`,
-                'success'
-            );
-        } catch (error) {
-            console.error(error);
-            compressedFilesCache = [];
-            clearNewPreview();
-            setUploadStatus('Không thể chuẩn bị ảnh. Vui lòng chọn lại và thử lại.', 'error');
+            setUploadStatus('Tải nền không thành công. Bạn vẫn có thể bấm Lưu để upload theo cách cũ.', 'error');
         } finally {
             isCompressing = false;
-
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalSubmitHtml;
-            }
+            isUploading = false;
+            setSubmitBusyState();
         }
     }
 
@@ -1373,6 +1504,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
     syncExistingImageControls();
 
+    if (uploadedGalleryPathsInput) {
+        try {
+            const initialPaths = JSON.parse(uploadedGalleryPathsInput.value || '[]');
+            stagedUploads = Array.isArray(initialPaths)
+                ? initialPaths.map((path) => ({
+                    path,
+                    url: resolveMediaUrl(path),
+                    name: String(path).split('/').pop() || 'Ảnh mới',
+                    size: 0
+                }))
+                : [];
+        } catch (error) {
+            stagedUploads = [];
+        }
+
+        syncHiddenUploadedPaths();
+        if (stagedUploads.length) {
+            renderNewPreviewFromUploads(stagedUploads);
+            setUploadStatus('Đã khôi phục ảnh mới đã chọn trước đó.', 'success');
+        }
+    }
+
     if (galleryInput) {
         galleryInput.addEventListener('change', async function () {
             await prepareImagesNow(this.files);
@@ -1381,18 +1534,30 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (form && galleryInput) {
         form.addEventListener('submit', function (e) {
-            if (isCompressing) {
+            if (isCompressing || isUploading) {
                 e.preventDefault();
-                setUploadStatus('Ảnh vẫn đang được chuẩn bị. Đợi xong rồi bấm Lưu.', 'error');
+                setUploadStatus('Ảnh vẫn đang được xử lý. Đợi xong rồi bấm Lưu.', 'error');
                 return;
             }
 
-            const files = Array.from(galleryInput.files || []);
+            const hiddenPaths = (() => {
+                try {
+                    const parsed = JSON.parse((uploadedGalleryPathsInput && uploadedGalleryPathsInput.value) || '[]');
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch (error) {
+                    return [];
+                }
+            })();
 
-            if (files.length && window.DataTransfer && compressedFilesCache.length) {
+            const files = Array.from(galleryInput.files || []);
+            if (!hiddenPaths.length && files.length && window.DataTransfer && compressedFilesCache.length) {
                 const dt = new DataTransfer();
                 compressedFilesCache.forEach(file => dt.items.add(file));
                 galleryInput.files = dt.files;
+            }
+
+            if (hiddenPaths.length) {
+                galleryInput.disabled = true;
             }
 
             if (submitBtn) {

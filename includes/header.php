@@ -18,18 +18,107 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/style.css">
 
     <style>
+        /* ==========================================================================
+           LUXURY HEADER & FLOATING ELEMENTS STYLESHEET
+           ========================================================================== */
+        
+        /* HEADER GLASSMORPHISM */
+        .site-header {
+            background-color: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            padding: 15px 0;
+            transition: all 0.4s ease;
+        }
+
+        .header-wrap {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 800;
+            font-size: 20px;
+            letter-spacing: -0.5px;
+            text-transform: uppercase;
+            color: var(--primary-color, #111);
+            text-decoration: none;
+        }
+
+        .logo-mark-img {
+            border-radius: 12px;
+            object-fit: cover;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .logo:hover .logo-mark-img {
+            transform: scale(1.05) rotate(5deg);
+        }
+
+        .site-header .menu {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .site-header .menu a {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-muted, #8e8e9f);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .site-header .menu a::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: -4px;
+            left: 0;
+            background-color: var(--primary-color, #111);
+            transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .site-header .menu a:hover {
+            color: var(--primary-color, #111);
+        }
+
+        .site-header .menu a:hover::after {
+            width: 100%;
+        }
+
         /* Nút menu mobile */
         .mobile-menu-toggle {
             display: none;
             background: transparent;
             border: none;
-            color: var(--primary-color, #000);
+            color: var(--primary-color, #111);
             cursor: pointer;
-            padding: 4px;
+            padding: 8px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        
+        .mobile-menu-toggle:hover {
+            background: rgba(0,0,0,0.05);
         }
 
         /* Ẩn hoàn toàn tab bar cũ */
@@ -37,50 +126,60 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
             display: none !important;
         }
 
-        /* Nút nhạc nổi */
+        /* FLOATING MUSIC TOGGLE - LUXURY GLASS */
         .floating-music-toggle {
             position: fixed;
-            right: 18px;
-            bottom: 88px; /* nằm phía trên nút Giới thiệu shop */
+            right: 25px;
+            bottom: 100px;
             z-index: 999;
             display: inline-flex;
             align-items: center;
-            gap: 10px;
-            border: none;
+            gap: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
             border-radius: 999px;
-            padding: 12px 16px;
-            background: rgba(17, 24, 39, 0.92);
-            color: #fff;
-            box-shadow: 0 14px 35px rgba(0, 0, 0, 0.22);
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.85);
+            color: var(--primary-color, #111);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
             cursor: pointer;
             font: inherit;
             font-size: 14px;
             font-weight: 700;
-            transition: transform 0.2s ease, background 0.2s ease, opacity 0.2s ease;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
         }
 
         .floating-music-toggle:hover {
-            transform: translateY(-2px);
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            background: #ffffff;
         }
 
         .floating-music-toggle:active {
-            transform: translateY(0);
+            transform: translateY(0) scale(0.95);
         }
 
         .floating-music-toggle svg {
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
             flex-shrink: 0;
+            transition: transform 0.3s;
         }
 
         .floating-music-toggle .music-icon-off {
             display: none;
+            color: var(--text-muted, #8e8e9f);
         }
 
+        /* Trạng thái đang phát nhạc */
         .floating-music-toggle.is-playing {
-            background: rgba(0, 0, 0, 0.92);
+            background: rgba(17, 17, 17, 0.9);
+            color: #ffffff;
+            border-color: rgba(0,0,0,0.5);
+            box-shadow: 0 10px 30px rgba(17, 17, 17, 0.3);
         }
 
         .floating-music-toggle.is-playing .music-icon-on {
@@ -89,6 +188,41 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
 
         .floating-music-toggle.is-playing .music-icon-off {
             display: block;
+            color: #ffffff;
+        }
+
+        /* Animation sóng âm khi nhạc phát */
+        .music-waves {
+            display: none;
+            align-items: center;
+            gap: 3px;
+            height: 15px;
+        }
+        
+        .floating-music-toggle.is-playing .music-waves {
+            display: flex;
+        }
+        
+        .floating-music-toggle.is-playing .music-icon-off {
+            display: none; /* Ẩn icon off thay bằng sóng âm */
+        }
+
+        .wave {
+            width: 3px;
+            height: 100%;
+            background-color: var(--danger-color, #ff3366);
+            border-radius: 3px;
+            animation: bounce 1.2s ease-in-out infinite;
+        }
+
+        .wave:nth-child(1) { animation-delay: 0.0s; }
+        .wave:nth-child(2) { animation-delay: -0.2s; }
+        .wave:nth-child(3) { animation-delay: -0.4s; }
+        .wave:nth-child(4) { animation-delay: -0.6s; }
+
+        @keyframes bounce {
+            0%, 100% { transform: scaleY(0.3); opacity: 0.6; }
+            50% { transform: scaleY(1); opacity: 1; }
         }
 
         .floating-music-toggle .music-toggle-text {
@@ -96,10 +230,19 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
             white-space: nowrap;
         }
 
+        /* MOBILE OPTIMIZATION */
         @media (max-width: 768px) {
+            .site-header {
+                padding: 15px;
+            }
+
             .header-wrap {
                 justify-content: space-between !important;
                 position: relative;
+            }
+
+            .logo span {
+                font-size: 18px;
             }
 
             .mobile-menu-toggle {
@@ -114,20 +257,23 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
                 top: 100%;
                 left: 0;
                 right: 0;
-                background-color: var(--bg-white, #fff);
+                background-color: rgba(255,255,255,0.95);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
                 flex-direction: column;
-                padding: 10px 15px;
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-                border-top: 1px solid var(--line-light, #e5e7eb);
-                gap: 15px;
+                padding: 20px;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+                border-top: 1px solid rgba(0,0,0,0.05);
+                border-radius: 0 0 24px 24px;
+                gap: 0;
             }
 
             .site-header .menu a {
-                padding: 10px 5px;
+                padding: 15px 10px;
                 display: block;
                 width: 100%;
-                border-bottom: 1px solid #f3f4f6;
-                font-size: 16px;
+                border-bottom: 1px solid rgba(0,0,0,0.05);
+                font-size: 15px;
             }
 
             .site-header .menu a:last-child {
@@ -136,7 +282,7 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
 
             .site-header .menu.is-open {
                 display: flex;
-                animation: slideDownMenu 0.3s ease forwards;
+                animation: slideDownMenu 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             }
 
             body {
@@ -144,10 +290,13 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
             }
 
             .floating-music-toggle {
-                right: 14px;
-                bottom: 78px;
-                padding: 11px 13px;
-                border-radius: 16px;
+                right: 20px;
+                bottom: 90px;
+                padding: 12px;
+                border-radius: 50%; /* Nút tròn trên mobile */
+                width: 45px;
+                height: 45px;
+                justify-content: center;
             }
 
             .floating-music-toggle .music-toggle-text {
@@ -158,7 +307,7 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
         @keyframes slideDownMenu {
             from {
                 opacity: 0;
-                transform: translateY(-10px);
+                transform: translateY(-15px);
             }
             to {
                 opacity: 1;
@@ -194,6 +343,13 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
             <line x1="17" y1="9" x2="23" y2="15"></line>
         </svg>
 
+        <div class="music-waves" aria-hidden="true">
+            <div class="wave"></div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+        </div>
+
         <span class="music-toggle-text">Bật nhạc</span>
     </button>
 <?php endif; ?>
@@ -209,7 +365,6 @@ $isAdminPage = strpos($currentUri, '/admin/') !== false;
                 height="42"
                 loading="eager"
                 decoding="async"
-                style="border-radius: 12px; object-fit: cover;"
             >
             <span>Duong Mot Mi SHOP</span>
         </a>

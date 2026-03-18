@@ -55,7 +55,7 @@ function render_product_cards(array $products): string
 
                     <div class="card-actions">
                         <a class="btn btn-light" href="<?= $productUrl ?>">Xem chi tiết</a>
-                        <a class="btn" target="_blank" href="<?= e(ZALO_LINK) ?>">Mua qua Zalo</a>
+                        <a class="btn btn-zalo" target="_blank" href="<?= e(ZALO_LINK) ?>">Mua qua Zalo</a>
                     </div>
                 </div>
             </div>
@@ -150,26 +150,36 @@ $showPopup = !$isFiltering;
 
 <style>
 /* =========================================================
-   CSS RIÊNG CHO TRANG INDEX TỐI ƯU GỌN NHẸ
+   CSS RIÊNG CHO TRANG INDEX TỐI ƯU GỌN NHẸ (LUXURY UPDATE)
    ========================================================= */
 .intro-open-btn {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    bottom: 30px;
+    right: 30px;
     background: var(--primary-color);
-    color: var(--bg-white);
+    color: #ffffff;
     border: none;
-    padding: 12px 20px;
+    padding: 14px 24px;
     border-radius: var(--radius-pill);
-    font-weight: 600;
+    font-weight: 700;
+    font-size: 15px;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.25);
     z-index: 100;
-    transition: transform 0.2s;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    animation: pulseFloat 2s infinite;
 }
 
 .intro-open-btn:hover {
-    transform: scale(1.05);
+    transform: scale(1.05) translateY(-5px);
+    background: var(--primary-hover);
+    animation: none;
+}
+
+@keyframes pulseFloat {
+    0% { transform: translateY(0); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+    50% { transform: translateY(-5px); box-shadow: 0 15px 25px rgba(0,0,0,0.3); }
+    100% { transform: translateY(0); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
 }
 
 body.popup-open {
@@ -182,15 +192,16 @@ body.popup-open {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     display: flex;
     align-items: center;    
     justify-content: center; 
     z-index: var(--z-index-modal);
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
 }
 
 .store-intro-overlay.show {
@@ -200,15 +211,18 @@ body.popup-open {
 
 .store-intro-modal {
     position: relative;
-    background: var(--bg-white);
-    width: 900px;
-    max-width: 90%;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    width: 950px;
+    max-width: 92%;
     max-height: 85vh; 
-    border-radius: 20px;
+    border-radius: 30px;
     overflow-y: auto; 
-    transform: scale(0.95) translateY(20px);
-    transition: transform 0.3s ease;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    transform: scale(0.9) translateY(30px);
+    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.5);
 }
 
 .store-intro-overlay.show .store-intro-modal {
@@ -217,93 +231,107 @@ body.popup-open {
 
 .popup-close-btn {
     position: absolute;
-    top: 15px;
-    right: 15px;
-    width: 36px;
-    height: 36px;
-    background: rgba(0, 0, 0, 0.1);
-    border: none;
+    top: 20px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 0, 0, 0.05);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
     border-radius: 50%;
     font-size: 24px;
+    font-weight: 300;
     line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     z-index: 10;
-    transition: background 0.2s;
+    transition: all 0.3s;
+    color: var(--text-main);
 }
 
 .popup-close-btn:hover {
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--danger-color);
+    color: #fff;
+    transform: rotate(90deg);
 }
 
 .hero-brand-layout-home {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    background: #f8fafc;
+    background: transparent;
 }
 
 .hero-brand-content {
-    padding: 40px;
+    padding: 50px;
     display: flex;
     flex-direction: column;
     justify-content: center;
 }
 
 .hero-brand-content h1 {
-    font-size: 32px;
-    line-height: 1.2;
-    margin-bottom: 16px;
-    color: var(--primary-color);
+    font-size: 38px;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    background: linear-gradient(45deg, #111, #555);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .hero-brand-content p {
-    font-size: 16px;
+    font-size: 17px;
     color: var(--text-muted);
-    margin-bottom: 24px;
+    margin-bottom: 30px;
+    line-height: 1.6;
 }
 
 .hero-feature-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 30px;
+    gap: 12px;
+    margin-bottom: 40px;
 }
 
 .hero-feature-tags span {
-    background: #e2e8f0;
-    padding: 6px 12px;
-    border-radius: 6px;
+    background: rgba(0,0,0,0.04);
+    padding: 8px 16px;
+    border-radius: 10px;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .hero-socials-home {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 15px;
+    gap: 20px;
 }
 
 .social-card {
     display: flex;
     align-items: center;
-    gap: 12px;
-    background: var(--bg-white);
-    padding: 12px;
-    border-radius: 12px;
-    border: 1px solid var(--line-light);
-    transition: transform 0.2s, box-shadow 0.2s;
+    gap: 15px;
+    background: rgba(255,255,255,0.8);
+    padding: 15px;
+    border-radius: 16px;
+    border: 1px solid rgba(0,0,0,0.05);
+    transition: all 0.3s;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.02);
 }
 
 .social-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    border-color: var(--line-strong);
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+    border-color: rgba(0,0,0,0.1);
+    background: #ffffff;
 }
 
 .social-icon img {
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 .social-text {
@@ -312,23 +340,28 @@ body.popup-open {
 }
 
 .social-text strong {
-    font-size: 14px;
+    font-size: 15px;
+    font-weight: 700;
     color: var(--text-main);
 }
 
 .social-text span {
     font-size: 12px;
+    font-weight: 500;
     color: var(--text-muted);
 }
 
 .hero-brand-banner {
     height: 100%;
+    position: relative;
+    overflow: hidden;
 }
 
 .hero-brand-banner img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 0 30px 30px 0;
 }
 
 /* Ẩn Filter button Desktop */
@@ -339,12 +372,14 @@ body.popup-open {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: #fff;
-    border: 1px solid var(--line-strong);
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0,0,0,0.05);
     color: var(--text-main);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-    font-weight: 600;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    font-weight: 700;
     border-radius: var(--radius-md);
+    padding: 12px;
 }
 
 .mobile-filter-toggle svg {
@@ -356,93 +391,113 @@ body.popup-open {
 }
 
 @keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
+    from { opacity: 0; transform: translateY(-15px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
 @media screen and (max-width: 768px) {
     /* Popup Mobile */
     .store-intro-modal {
-        width: 95% !important;
+        width: 92% !important;
         max-height: 85vh !important;
         padding: 0; 
-        border-radius: 16px;
+        border-radius: 24px;
     }
 
     .hero-brand-layout-home {
         display: flex !important;
         flex-direction: column-reverse; 
-        background: var(--bg-white);
+        background: transparent;
     }
 
     .hero-brand-content {
-        padding: 20px 15px !important;
+        padding: 25px 20px !important;
     }
 
     .hero-brand-content h1 {
-        font-size: 22px !important;
+        font-size: 26px !important;
     }
 
     .hero-brand-content p {
         font-size: 14px;
-        margin-bottom: 15px;
-    }
-
-    .hero-feature-tags {
         margin-bottom: 20px;
     }
 
+    .hero-feature-tags {
+        margin-bottom: 25px;
+    }
+
     .hero-feature-tags span {
-        font-size: 12px;
-        padding: 4px 8px;
+        font-size: 11px;
+        padding: 6px 10px;
+        border-radius: 8px;
     }
 
     .hero-socials-home {
         grid-template-columns: 1fr; 
+        gap: 12px;
+    }
+
+    .social-card {
+        padding: 12px;
+        border-radius: 12px;
     }
 
     .hero-brand-banner img {
-        height: 250px; 
+        height: 200px; 
+        border-radius: 24px 24px 0 0;
     }
     
     .popup-close-btn {
-        background: rgba(255, 255, 255, 0.8);
+        background: rgba(255, 255, 255, 0.9);
         color: var(--primary-color);
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        top: 10px;
+        right: 10px;
+        width: 32px;
+        height: 32px;
+        font-size: 20px;
+        border: none;
     }
 
     /* Logic bật tắt Filter Mobile */
     .mobile-filter-toggle {
         display: flex;
+        border-radius: 12px;
+        font-size: 14px;
     }
 
     .filter-panel {
         display: none; 
-        margin-bottom: 15px;
-        padding: 15px;
+        margin-bottom: 20px;
+        padding: 20px;
+        border-radius: 20px;
     }
 
     .filter-panel.show-on-mobile {
         display: block;
-        animation: slideDown 0.3s ease forwards;
+        animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     }
 
     .filter-grid {
         grid-template-columns: 1fr; 
-        gap: 12px;
+        gap: 15px;
     }
     
     .filter-field label {
-        margin-bottom: 4px;
+        margin-bottom: 6px;
+        font-size: 11px;
     }
     
     .filter-actions {
         flex-direction: column;
-        gap: 8px;
+        gap: 10px;
+        margin-top: 15px;
     }
     
     .filter-actions .btn {
         width: 100%;
+        border-radius: 10px;
     }
 }
 </style>
@@ -455,12 +510,6 @@ body.popup-open {
         <section class="hero-pro hero-pro-upgraded">
             <div class="hero-brand-layout hero-brand-layout-home">
                 <div class="hero-brand-content">
-                    <!-- <div class="hero-feature-tags">
-                        <span>Thiết kế hiện đại</span>
-                        <span>Lọc siêu nhanh</span>
-                        <span>Mua qua Zalo tiện lợi</span>
-                    </div> -->
-
                     <div class="hero-socials hero-socials-home">
                         <a class="social-card tiktok" href="https://www.tiktok.com/@duongmotmi2004?_r=1&_t=ZS-94ljEoOsGHP" target="_blank" rel="noopener noreferrer">
                             <div class="social-icon icon-image">
